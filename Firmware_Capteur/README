@@ -1,0 +1,7 @@
+Ce dossien contient le code source pour le firmware MatLab du capteur SLMX4.
+
+Ce firmware est celui utilisé dans le cadre du projet proto-pulmo, les instructions pour l'installer sur le capteur ainsi que le binaire compilé sont disponible sur le github de SensorLogic
+
+Guide pour l'installation : https://github.com/SensorLogicInc/modules/blob/main/firmware/insecure_fw_update.md
+
+Binaire Compilé : https://modules-release.s3-us-west-2.amazonaws.com/firmware/slmx4_base_usb_vcom_xep_matlab_server.s19

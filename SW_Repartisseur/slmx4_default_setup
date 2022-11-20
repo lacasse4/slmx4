@@ -1,0 +1,24 @@
+Serial port available:  /dev/serial/by-id/usb-NXP_SEMICONDUCTORS_MCU_VIRTUAL_COM_DEMO-if00
+Initialize SLMX4 sensor
+VarGetValue_ByName(dac_min)           = 0
+VarGetValue_ByName(dac_max)           = 2047
+VarGetValue_ByName(dac_step)          = 0
+VarGetValue_ByName(pps)               = 10
+VarGetValue_ByName(iterations)        = 8
+VarGetValue_ByName(prf_div)           = 16
+VarGetValue_ByName(prf)               = 1.518750e+07
+VarGetValue_ByName(fs)                = 2.332800e+10
+VarGetValue_ByName(num_samples)       = 1535
+VarGetValue_ByName(frame_length)      = 16
+VarGetValue_ByName(rx_wait)           = 1
+VarGetValue_ByName(tx_region)         = 3
+VarGetValue_ByName(tx_power)          = 2
+VarGetValue_ByName(ddc_en)            = 0
+VarGetValue_ByName(frame_offset)      = 0.000000e+00
+VarGetValue_ByName(frame_start)       = 0.000000e+00
+VarGetValue_ByName(frame_end)         = 9.870113e+00
+VarGetValue_ByName(sweep_time)        = 1.078255e-02
+VarGetValue_ByName(unambiguous_range) = 9.869711e+00
+VarGetValue_ByName(res)               = 6.430041e-03
+VarGetValue_ByName(fs_rf)             = 2.332800e+10
+

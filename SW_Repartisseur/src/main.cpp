@@ -1,265 +1,114 @@
 #include <stdio.h> 
 #include <stdlib.h> 
-
-//#include "sendosc.h"
-#include "slmx4_vcom.h"
-//#include "Proto_Pulmo.h"
-//#include "filters.h"
-//#include "respiration.h"
-
 #include <stddef.h>
 #include <stdarg.h>
 #include <string.h>
-//#include <pthread.h>
-//#include <netinet/in.h>
-//#include "tinyosc.h"
+#include <signal.h>
 
+#include "slmx4_vcom.h"
 
-// #include "testData.h"
-
-/**************************************************************************************/
-
-// Frame capture macros
-#define BREATH_SIZE 300
-#define PERIOD 50
-#define MAX_TIMEOUTS 3
-
-// Sensor register macros
-#define RX_WAIT 1
-#define FRAME_START 2
-#define FRAME_END 3
-#define DDC_EN 4
-#define PPS 5
-
+#define MAX_FRAME_SIZE 1535
 
 const char* SERIAL_PORT = "/dev/serial/by-id/usb-NXP_SEMICONDUCTORS_MCU_VIRTUAL_COM_DEMO-if00";
 
-// Global buffers
-/*static char host_addr[32] = {0};
-static char cmd_buf[32] = {0};
+FILE* fd = NULL;
+slmx4 sensor;
+float sensor_data[MAX_FRAME_SIZE];
 
-// Global flags
-static volatile unsigned char go__ = 0;
-static volatile unsigned char cmd__ = 0;
-static volatile unsigned char host__ = 0;
-static volatile unsigned char stop__ = 0;
-static volatile unsigned char thread_running = 0;
+void display_slmx4_status();
 
-// Thread params
-typedef struct _args
-{
-	void* host_addr_str_ptr;
-	volatile void* go_ptr;
-	volatile void* cmd_buf_ptr;
-	volatile void* cmd_flag_ptr;
-	volatile void* host_flag_ptr;
-} *thread_args;
+void clean_up(int sig) {
+	printf("Close sensor\n");
+	if (fd != NULL) fclose(fd);
+	fd = NULL;
+	sensor.end();
+	exit(EXIT_SUCCESS);
+}
 
-// Struct memory allocation
-thread_args argsCons();
-void argsDest(thread_args ptr);
-
-// Global states
-enum states{stopped, running, parsing, starting, stopping, standby};
-
-// Local functions
-void *osc_listener(void* vargp);
-int UpdateSensorReg(slmx4* sensor, int reg, float val);
-*/
-
-/**************************************************************************************/
-/**************************		 		MAIN 				***************************/
-/**************************************************************************************/
-int main()
+int main(int argc, char* argv[])
 {
 	int i;
-	timeOut timer;
-	slmx4 sensor;
-	_Float32* sensor_data;
+	long frame_count = 1;
 
+	signal(SIGINT, clean_up);
+
+	printf("Open serial port: %s\n", SERIAL_PORT);
 	if (access(SERIAL_PORT, F_OK) < 0) {
 		fprintf(stderr, "ERROR: serial port NOT available: %s\n", SERIAL_PORT);		
 		exit(EXIT_FAILURE);
 	}
-	printf("Serial port available:  %s\n", SERIAL_PORT);
 
-	if (sensor.begin(SERIAL_PORT) == EXIT_FAILURE) exit(EXIT_FAILURE);
+	printf("Initialize SLMX4 sensor\n");
+	if (sensor.begin(SERIAL_PORT) == EXIT_FAILURE) {
+		exit(EXIT_FAILURE);
+	}
 
-	sensor.iterations();//Default values
+    sensor.set_value_by_name("VarSetValue_ByName(ddc_en,1)");
+	display_slmx4_status();
 
+	sensor.get_num_samples();
+	printf("sensor.n_samples = %d\n", sensor.num_samples);
 
-	//If communication is bad stahp
-	sensor.setRegister(slmx4::rx_wait);
-	sensor.setRegister(slmx4::frame_start);
-	sensor.setRegister(slmx4::frame_end);
-	sensor.setRegister(slmx4::ddc_en);
-	sensor.setRegister(slmx4::pps);
+	if (argc == 2) {
+		clean_up(0);
+	}
 
-			/* if(UpdateSensorReg(&sensor, RX_WAIT, 0) == EXIT_FAILURE) { }
-			
-			UpdateSensorReg(&sensor, FRAME_START, 0.2);
-			UpdateSensorReg(&sensor, FRAME_END, 4);
-			UpdateSensorReg(&sensor, DDC_EN, 1);
-			UpdateSensorReg(&sensor, PPS, 10); */
+	sensor.num_samples = sensor.num_samples * 2;
 
-//			resp_data = respiration_init(sensor.numSamplers, BREATH_SIZE);
-
-	sensor_data = (_Float32*)malloc(sizeof(_Float32)*sensor.numSamplers);
-
-		/* Running: Capture, filter and send frame information to MAX*/
-	timer.initTimer();
-
-	sensor.getFrameRaw(sensor_data);
-				// respiration_update(sensor_data, sensor.numSamplers, resp_data);
-	FILE* fd = fopen("./DATA", "w");
+	printf("Output data to file DATA\n");
+	fd = fopen("./DATA", "w");
 	if(fd == NULL) {
 		fprintf(stderr,"ERROR: Can not open ./DATA for writing\n");
 		exit(EXIT_FAILURE);
 	}
-				/*
-				for(int i = 0; i < sensor.numSamplers-1; i++)
-					fprintf(fichier,"%f,",sensor_data[i]);
+	
+	int done = 0;
+	while (!done) {
+		printf("Frame %ld\r", frame_count++);
+		fflush(stdout);
+		sensor.get_frame_normalized(sensor_data);
 
-				fprintf(fichier,"%f",sensor_data[sensor.numSamplers-1]);
-        		*/
+		// sensor.getFrameNormalized(sensor_data);
 
-				/* float parse = (5000*resp_data->resp_buffer[0]); //TODO: Move declaration
- 				int parsed_send = (int)parse;
-				sendosc(int_, &parsed_send,host_addr); */
-				
-	for (i = 0; i < sensor.numSamplers; i++) {
-		fprintf(fd,"%f\n",sensor_data[i]);
+		fprintf(fd, "%d\n", sensor.num_samples);
+		for (i = 0; i < sensor.num_samples; i++) {
+			fprintf(fd,"%f\n",sensor_data[i]);
+		}
+		fflush(fd);
+		usleep(500000);
+		done = 1;
 	}
 
-	sensor.end();
 	fclose(fd);
-	free(sensor_data);
+	fd = NULL;
+	printf("Close sensor\n");
+	sensor.end();
 
 	return EXIT_SUCCESS;
 }
-/**************************************************************************************/
 
 
-/* UpdateSensorReg()
- *	- sensor: 	Pointer to sensor obj
- *	- reg: 		Register to be updated on sensor (see macros)
- *	- val: 		Value sent to register
- */
-/*int UpdateSensorReg(slmx4* sensor, int reg, float val)
+void display_slmx4_status() 
 {
-	switch (reg)
-	{
-	case RX_WAIT:
-		static unsigned char rx_wait_arg = val;
-		return sensor->TryUpdateChip(slmx4::rx_wait, &rx_wait_arg);
-		break;
-	case FRAME_START:
-		static float frame_start_arg = val;
-		return sensor->TryUpdateChip(slmx4::frame_start, &frame_start_arg);
-		break;
-	case FRAME_END:
-		static float frame_end_arg = val;
-		return sensor->TryUpdateChip(slmx4::frame_end, &frame_end_arg);
-		break;
-	case DDC_EN:
-		static unsigned char ddc_en_arg = val;
-		return sensor->TryUpdateChip(slmx4::ddc_en, &ddc_en_arg);
-		break;
-	case PPS:
-		static unsigned int PPS_arg = val;
-		return sensor->TryUpdateChip(slmx4::pps, &PPS_arg);
-		break;
-	}
-	return 0;
-} */
-/**************************************************************************************/
-
-
-/* osc_listener()
- *	- vargp: Pointeur vers thread params
- */
-/*void *osc_listener(void* vargp)
-{
-	thread_args params = (thread_args) vargp;
-
-
-	char buffer[2048]; //Buffer de 2kB pour lire le packet
-
-	// Ouvrir le socket et ecouter sur le port 6969
-	const int fd = socket(AF_INET, SOCK_DGRAM, 0);
-	fcntl(fd, F_SETFL, O_NONBLOCK); // non-blockant
-	struct sockaddr_in sin;
-	sin.sin_family = AF_INET;
-	sin.sin_port = htons(6969);
-	sin.sin_addr.s_addr = INADDR_ANY;
-	bind(fd, (struct sockaddr *) &sin, sizeof(struct sockaddr_in));
-
-	while (thread_running) {
-		char buff[32];
-		fd_set readSet;
-		FD_ZERO(&readSet);
-		FD_SET(fd, &readSet);
-		struct timeval timeout = {1, 0};
-		if (select(fd+1, &readSet, NULL, NULL, &timeout) > 0) {
-			struct sockaddr sa;
-			socklen_t sa_len = sizeof(struct sockaddr_in);
-			int len = 0;
-			while ((len = (int) recvfrom(fd, buffer, sizeof(buffer), 0, &sa, &sa_len)) > 0) {
-				if (tosc_isBundle(buffer)) {
-					tosc_bundle bundle;
-					tosc_parseBundle(&bundle, buffer, len);
-					const uint64_t timetag = tosc_getTimetag(&bundle);
-					tosc_message osc;
-					while (tosc_getNextMessage(&bundle, &osc)) {
-						tosc_printMessage(&osc, buff);
-					}
-				} else {
-					tosc_message osc;
-					tosc_parseMessage(&osc, buffer, len);
-
-					//Parse osc address string (MAX message string)
-					switch(tosc_printMessage(&osc, buff))
-					{
-					case 1://string starts with '@' : parse as host address
-						strcpy((char*)params->host_addr_str_ptr, buff); //store hostaddr string
-						*((volatile unsigned char*)params->host_flag_ptr) = 1; //break blocking loop for init
-						break;
-					case 2:
-						strcpy((char*)params->cmd_buf_ptr, buff); //store cmd string
-						*((volatile unsigned char*)params->cmd_flag_ptr) = 1;
-						break;
-					default: break;
-					}
-				}
-			}
-		}
-	}
-	// close the UDP socket
-	close(fd);
-	return 0;
-} */
-/**************************************************************************************/
-
-
-/* argsCons()
- *	Initialisation du struct passe au thread
- */
-/* thread_args argsCons()
-{
-	thread_args _args= (thread_args)malloc(sizeof(struct _args));
-	_args->host_addr_str_ptr = &host_addr;
-	_args->go_ptr = &go__;
-	_args->cmd_buf_ptr = &cmd_buf;
-	_args->cmd_flag_ptr = &cmd__;
-	_args->host_flag_ptr = &host__;
-	return _args;
-} */
-
-/* argsDest()
- *	Destruction du struct passe au thread
- */
-/* void argsDest(thread_args ptr)
-{
-	free(ptr);
-} */
-/**************************************************************************************/
+	printf("dac_min           = %d\n", sensor.get_dac_min());
+	printf("dac_max           = %d\n", sensor.get_dac_max());
+	printf("dac_step          = %d\n", sensor.get_dac_step());
+	printf("pps               = %d\n", sensor.get_pps());
+	printf("iterations        = %d\n", sensor.get_iterations());
+	printf("prf_div           = %d\n", sensor.get_prf_div());
+	printf("prf               = %e\n", sensor.get_prf());
+	printf("fs                = %e\n", sensor.get_fs());
+	printf("num_samples       = %d\n", sensor.get_num_samples());
+	printf("frame_length      = %d\n", sensor.get_frame_length());
+	printf("rx_wait           = %d\n", sensor.get_rx_wait());
+	printf("tx_region         = %d\n", sensor.get_tx_region());
+	printf("tx_power          = %d\n", sensor.get_tx_power());
+	printf("ddc_en            = %d\n", sensor.get_ddc_en());
+	printf("frame_offset      = %e\n", sensor.get_frame_offset());
+	printf("frame_start       = %e\n", sensor.get_frame_start());
+	printf("frame_end         = %e\n", sensor.get_frame_end());
+	printf("sweep_time        = %e\n", sensor.get_sweep_time());
+	printf("unambiguous_range = %e\n", sensor.get_unambiguous_range());
+	printf("res               = %e\n", sensor.get_res());
+	printf("fs_rf             = %e\n", sensor.get_fs_rf());
+}

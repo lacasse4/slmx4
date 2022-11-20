@@ -28,15 +28,7 @@ This is a licence-free software, it can be used by anyone who try to build a bet
 */
 serialib::serialib()
 {
-#if defined (_WIN32) || defined( _WIN64)
-    // Set default value for RTS and DTR (Windows only)
-    currentStateRTS=true;
-    currentStateDTR=true;
-    hSerial = INVALID_HANDLE_VALUE;
-#endif
-#if defined (__linux__) || defined(__APPLE__)
     fd = -1;
-#endif
 }
 
 
@@ -129,99 +121,7 @@ char serialib::openDevice(const char *Device, const unsigned int Bauds,
                           SerialDataBits Databits,
                           SerialParity Parity,
                           SerialStopBits Stopbits) {
-#if defined (_WIN32) || defined( _WIN64)
-    // Open serial port
-    hSerial = CreateFileA(Device,GENERIC_READ | GENERIC_WRITE,0,0,OPEN_EXISTING,/*FILE_ATTRIBUTE_NORMAL*/0,0);
-    if(hSerial==INVALID_HANDLE_VALUE) {
-        if(GetLastError()==ERROR_FILE_NOT_FOUND)
-            return -1; // Device not found
 
-        // Error while opening the device
-        return -2;
-    }
-
-    // Set parameters
-
-    // Structure for the port parameters
-    DCB dcbSerialParams;
-    dcbSerialParams.DCBlength=sizeof(dcbSerialParams);
-
-    // Get the port parameters
-    if (!GetCommState(hSerial, &dcbSerialParams)) return -3;
-
-    // Set the speed (Bauds)
-    switch (Bauds)
-    {
-    case 110  :     dcbSerialParams.BaudRate=CBR_110; break;
-    case 300  :     dcbSerialParams.BaudRate=CBR_300; break;
-    case 600  :     dcbSerialParams.BaudRate=CBR_600; break;
-    case 1200 :     dcbSerialParams.BaudRate=CBR_1200; break;
-    case 2400 :     dcbSerialParams.BaudRate=CBR_2400; break;
-    case 4800 :     dcbSerialParams.BaudRate=CBR_4800; break;
-    case 9600 :     dcbSerialParams.BaudRate=CBR_9600; break;
-    case 14400 :    dcbSerialParams.BaudRate=CBR_14400; break;
-    case 19200 :    dcbSerialParams.BaudRate=CBR_19200; break;
-    case 38400 :    dcbSerialParams.BaudRate=CBR_38400; break;
-    case 56000 :    dcbSerialParams.BaudRate=CBR_56000; break;
-    case 57600 :    dcbSerialParams.BaudRate=CBR_57600; break;
-    case 115200 :   dcbSerialParams.BaudRate=CBR_115200; break;
-    case 128000 :   dcbSerialParams.BaudRate=CBR_128000; break;
-    case 256000 :   dcbSerialParams.BaudRate=CBR_256000; break;
-    default : return -4;
-    }
-    //select data size
-    BYTE bytesize = 0;
-    switch(Databits) {
-        case SERIAL_DATABITS_5: bytesize = 5; break;
-        case SERIAL_DATABITS_6: bytesize = 6; break;
-        case SERIAL_DATABITS_7: bytesize = 7; break;
-        case SERIAL_DATABITS_8: bytesize = 8; break;
-        case SERIAL_DATABITS_16: bytesize = 16; break;
-        default: return -7;
-    }
-    BYTE stopBits = 0;
-    switch(Stopbits) {
-        case SERIAL_STOPBITS_1: stopBits = ONESTOPBIT; break;
-        case SERIAL_STOPBITS_1_5: stopBits = ONE5STOPBITS; break;
-        case SERIAL_STOPBITS_2: stopBits = TWOSTOPBITS; break;
-        default: return -8;
-    }
-    BYTE parity = 0;
-    switch(Parity) {
-        case SERIAL_PARITY_NONE: parity = NOPARITY; break;
-        case SERIAL_PARITY_EVEN: parity = EVENPARITY; break;
-        case SERIAL_PARITY_ODD: parity = ODDPARITY; break;
-        case SERIAL_PARITY_MARK: parity = MARKPARITY; break;
-        case SERIAL_PARITY_SPACE: parity = SPACEPARITY; break;
-        default: return -9;
-    }
-    // configure byte size
-    dcbSerialParams.ByteSize = bytesize;
-    // configure stop bits
-    dcbSerialParams.StopBits = stopBits;
-    // configure parity
-    dcbSerialParams.Parity = parity;
-
-    // Write the parameters
-    if(!SetCommState(hSerial, &dcbSerialParams)) return -5;
-
-    // Set TimeOut
-
-    // Set the Timeout parameters
-    timeouts.ReadIntervalTimeout=0;
-    // No TimeOut
-    timeouts.ReadTotalTimeoutConstant=MAXDWORD;
-    timeouts.ReadTotalTimeoutMultiplier=0;
-    timeouts.WriteTotalTimeoutConstant=MAXDWORD;
-    timeouts.WriteTotalTimeoutMultiplier=0;
-
-    // Write the parameters
-    if(!SetCommTimeouts(hSerial, &timeouts)) return -6;
-
-    // Opening successfull
-    return 1;
-#endif
-#if defined (__linux__) || defined(__APPLE__)
     // Structure with the device's options
     struct termios options;
 
@@ -296,18 +196,11 @@ char serialib::openDevice(const char *Device, const unsigned int Bauds,
     tcsetattr(fd, TCSANOW, &options);
     // Success
     return (1);
-#endif
-
 }
 
 bool serialib::isDeviceOpen()
 {
-#if defined (_WIN32) || defined( _WIN64)
-    return hSerial != INVALID_HANDLE_VALUE;
-#endif
-#if defined (__linux__) || defined(__APPLE__)
     return fd >= 0;
-#endif
 }
 
 /*!
@@ -315,14 +208,8 @@ bool serialib::isDeviceOpen()
 */
 void serialib::closeDevice()
 {
-#if defined (_WIN32) || defined( _WIN64)
-    CloseHandle(hSerial);
-    hSerial = INVALID_HANDLE_VALUE;
-#endif
-#if defined (__linux__) || defined(__APPLE__)
     close (fd);
     fd = -1;
-#endif
 }
 
 
@@ -339,24 +226,13 @@ void serialib::closeDevice()
      \return 1 success
      \return -1 error while writting data
   */
-int serialib::writeChar(const char Byte)
+char serialib::writeChar(const char Byte)
 {
-#if defined (_WIN32) || defined( _WIN64)
-    // Number of bytes written
-    DWORD dwBytesWritten;
-    // Write the char to the serial device
-    // Return -1 if an error occured
-    if(!WriteFile(hSerial,&Byte,1,&dwBytesWritten,NULL)) return -1;
-    // Write operation successfull
-    return 1;
-#endif
-#if defined (__linux__) || defined(__APPLE__)
     // Write the char
     if (write(fd,&Byte,1)!=1) return -1;
 
     // Write operation successfull
     return 1;
-#endif
 }
 
 
@@ -371,26 +247,14 @@ int serialib::writeChar(const char Byte)
      \return     1 success
      \return    -1 error while writting data
   */
-int serialib::writeString(const char *receivedString)
+char serialib::writeString(const char *receivedString)
 {
-#if defined (_WIN32) || defined( _WIN64)
-    // Number of bytes written
-    DWORD dwBytesWritten;
-    // Write the string
-    if(!WriteFile(hSerial,receivedString,strlen(receivedString),&dwBytesWritten,NULL))
-        // Error while writing, return -1
-        return -1;
-    // Write operation successfull
-    return 1;
-#endif
-#if defined (__linux__) || defined(__APPLE__)
     // Lenght of the string
     int Lenght=strlen(receivedString);
     // Write the string
     if (write(fd,receivedString,Lenght)!=Lenght) return -1;
     // Write operation successfull
     return 1;
-#endif
 }
 
 // _____________________________________
@@ -405,24 +269,12 @@ int serialib::writeString(const char *receivedString)
      \return 1 success
      \return -1 error while writting data
   */
-int serialib::writeBytes(const void *Buffer, const unsigned int NbBytes)
+char serialib::writeBytes(const void *Buffer, const unsigned int NbBytes)
 {
-#if defined (_WIN32) || defined( _WIN64)
-    // Number of bytes written
-    DWORD dwBytesWritten;
-    // Write data
-    if(!WriteFile(hSerial, Buffer, NbBytes, &dwBytesWritten, NULL))
-        // Error while writing, return -1
-        return -1;
-    // Write operation successfull
-    return 1;
-#endif
-#if defined (__linux__) || defined(__APPLE__)
     // Write data
     if (write (fd,Buffer,NbBytes)!=(ssize_t)NbBytes) return -1;
     // Write operation successfull
     return 1;
-#endif
 }
 
 
@@ -437,28 +289,9 @@ int serialib::writeBytes(const void *Buffer, const unsigned int NbBytes)
      \return -1 error while setting the Timeout
      \return -2 error while reading the byte
   */
-int serialib::readChar(char *pByte,unsigned int timeOut_ms)
+char serialib::readChar(char *pByte,unsigned int timeOut_ms)
 {
-#if defined (_WIN32) || defined(_WIN64)
-    // Number of bytes read
-    DWORD dwBytesRead = 0;
 
-    // Set the TimeOut
-    timeouts.ReadTotalTimeoutConstant=timeOut_ms;
-
-    // Write the parameters, return -1 if an error occured
-    if(!SetCommTimeouts(hSerial, &timeouts)) return -1;
-
-    // Read the byte, return -2 if an error occured
-    if(!ReadFile(hSerial,pByte, 1, &dwBytesRead, NULL)) return -2;
-
-    // Return 0 if the timeout is reached
-    if (dwBytesRead==0) return 0;
-
-    // The byte is read
-    return 1;
-#endif
-#if defined (__linux__) || defined(__APPLE__)
     // Timer used for timeout
     timeOut         timer;
     // Initialise the timer
@@ -473,7 +306,6 @@ int serialib::readChar(char *pByte,unsigned int timeOut_ms)
         }
     }
     return 0;
-#endif
 }
 
 
@@ -613,27 +445,6 @@ int serialib::readString(char *receivedString,char finalChar,unsigned int maxNbB
   */
 int serialib::readBytes (void *buffer,unsigned int maxNbBytes,unsigned int timeOut_ms, unsigned int sleepDuration_us)
 {
-#if defined (_WIN32) || defined(_WIN64)
-    // Avoid warning while compiling
-    UNUSED(sleepDuration_us);
-
-    // Number of bytes read
-    DWORD dwBytesRead = 0;
-
-    // Set the TimeOut
-    timeouts.ReadTotalTimeoutConstant=(DWORD)timeOut_ms;
-
-    // Write the parameters and return -1 if an error occrured
-    if(!SetCommTimeouts(hSerial, &timeouts)) return -1;
-
-
-    // Read the bytes from the serial device, return -2 if an error occured
-    if(!ReadFile(hSerial,buffer,(DWORD)maxNbBytes,&dwBytesRead, NULL))  return -2;
-
-    // Return the byte read
-    return dwBytesRead;
-#endif
-#if defined (__linux__) || defined(__APPLE__)
     // Timer used for timeout
     timeOut          timer;
     // Initialise the timer
@@ -641,11 +452,11 @@ int serialib::readBytes (void *buffer,unsigned int maxNbBytes,unsigned int timeO
     unsigned int     NbByteRead=0;
     // While Timeout is not reached
     while (timer.elapsedTime_ms()<timeOut_ms || timeOut_ms==0)
-    {
+    { 
         // Compute the position of the current byte
         unsigned char* Ptr=(unsigned char*)buffer+NbByteRead;
         // Try to read a byte on the device
-        int Ret=read(fd,(void*)Ptr,maxNbBytes-NbByteRead);
+        int Ret=read(fd,(void*)Ptr,maxNbBytes);
         // Error while reading
         if (Ret==-1) return -2;
 
@@ -655,15 +466,14 @@ int serialib::readBytes (void *buffer,unsigned int maxNbBytes,unsigned int timeO
             // Increase the number of read bytes
             NbByteRead+=Ret;
             // Success : bytes has been read
-            if (NbByteRead>=maxNbBytes)
+            if (NbByteRead >= maxNbBytes)
                 return NbByteRead;
         }
-        // Suspend the loop to avoid charging the CPU
-        usleep (sleepDuration_us);
+        // Nops
+        usleep (sleepDuration_us);    
     }
     // Timeout reached, return the number of bytes read
     return NbByteRead;
-#endif
 }
 
 
@@ -681,15 +491,9 @@ int serialib::readBytes (void *buffer,unsigned int maxNbBytes,unsigned int timeO
 */
 char serialib::flushReceiver()
 {
-#if defined (_WIN32) || defined(_WIN64)
-    // Purge receiver
-    return PurgeComm (hSerial, PURGE_RXCLEAR);
-#endif
-#if defined (__linux__) || defined(__APPLE__)
     // Purge receiver
     tcflush(fd,TCIFLUSH);
     return true;
-#endif
 }
 
 
@@ -700,22 +504,10 @@ char serialib::flushReceiver()
 */
 int serialib::available()
 {    
-#if defined (_WIN32) || defined(_WIN64)
-    // Device errors
-    DWORD commErrors;
-    // Device status
-    COMSTAT commStatus;
-    // Read status
-    ClearCommError(hSerial, &commErrors, &commStatus);
-    // Return the number of pending bytes
-    return commStatus.cbInQue;
-#endif
-#if defined (__linux__) || defined(__APPLE__)
     int nBytes=0;
     // Return number of pending bytes in the receiver
     ioctl(fd, FIONREAD, &nBytes);
     return nBytes;
-#endif
 
 }
 
@@ -752,19 +544,12 @@ bool serialib::DTR(bool status)
 */
 bool serialib::setDTR()
 {
-#if defined (_WIN32) || defined(_WIN64)
-    // Set DTR
-    currentStateDTR=true;
-    return EscapeCommFunction(hSerial,SETDTR);
-#endif
-#if defined (__linux__) || defined(__APPLE__)
     // Set DTR
     int status_DTR=0;
     ioctl(fd, TIOCMGET, &status_DTR);
     status_DTR |= TIOCM_DTR;
     ioctl(fd, TIOCMSET, &status_DTR);
     return true;
-#endif
 }
 
 /*!
@@ -775,19 +560,12 @@ bool serialib::setDTR()
 */
 bool serialib::clearDTR()
 {
-#if defined (_WIN32) || defined(_WIN64)
-    // Clear DTR
-    currentStateDTR=true;
-    return EscapeCommFunction(hSerial,CLRDTR);
-#endif
-#if defined (__linux__) || defined(__APPLE__)
     // Clear DTR
     int status_DTR=0;
     ioctl(fd, TIOCMGET, &status_DTR);
     status_DTR &= ~TIOCM_DTR;
     ioctl(fd, TIOCMSET, &status_DTR);
     return true;
-#endif
 }
 
 
@@ -820,19 +598,12 @@ bool serialib::RTS(bool status)
 */
 bool serialib::setRTS()
 {
-#if defined (_WIN32) || defined(_WIN64)
-    // Set RTS
-    currentStateRTS=false;
-    return EscapeCommFunction(hSerial,SETRTS);
-#endif
-#if defined (__linux__) || defined(__APPLE__)
     // Set RTS
     int status_RTS=0;
     ioctl(fd, TIOCMGET, &status_RTS);
     status_RTS |= TIOCM_RTS;
     ioctl(fd, TIOCMSET, &status_RTS);
     return true;
-#endif
 }
 
 
@@ -845,19 +616,12 @@ bool serialib::setRTS()
 */
 bool serialib::clearRTS()
 {
-#if defined (_WIN32) || defined(_WIN64)
-    // Clear RTS
-    currentStateRTS=false;
-    return EscapeCommFunction(hSerial,CLRRTS);
-#endif
-#if defined (__linux__) || defined(__APPLE__)
     // Clear RTS
     int status_RTS=0;
     ioctl(fd, TIOCMGET, &status_RTS);
     status_RTS &= ~TIOCM_RTS;
     ioctl(fd, TIOCMSET, &status_RTS);
     return true;
-#endif
 }
 
 
@@ -870,17 +634,10 @@ bool serialib::clearRTS()
   */
 bool serialib::isCTS()
 {
-#if defined (_WIN32) || defined(_WIN64)
-    DWORD modemStat;
-    GetCommModemStatus(hSerial, &modemStat);
-    return modemStat & MS_CTS_ON;
-#endif
-#if defined (__linux__) || defined(__APPLE__)
     int status=0;
     //Get the current status of the CTS bit
     ioctl(fd, TIOCMGET, &status);
     return status & TIOCM_CTS;
-#endif
 }
 
 
@@ -892,17 +649,10 @@ bool serialib::isCTS()
   */
 bool serialib::isDSR()
 {
-#if defined (_WIN32) || defined(_WIN64)
-    DWORD modemStat;
-    GetCommModemStatus(hSerial, &modemStat);
-    return modemStat & MS_DSR_ON;
-#endif
-#if defined (__linux__) || defined(__APPLE__)
     int status=0;
     //Get the current status of the DSR bit
     ioctl(fd, TIOCMGET, &status);
     return status & TIOCM_DSR;
-#endif
 }
 
 
@@ -918,17 +668,10 @@ bool serialib::isDSR()
   */
 bool serialib::isDCD()
 {
-#if defined (_WIN32) || defined(_WIN64)
-    DWORD modemStat;
-    GetCommModemStatus(hSerial, &modemStat);
-    return modemStat & MS_RLSD_ON;
-#endif
-#if defined (__linux__) || defined(__APPLE__)
     int status=0;
     //Get the current status of the DCD bit
     ioctl(fd, TIOCMGET, &status);
     return status & TIOCM_CAR;
-#endif
 }
 
 
@@ -939,17 +682,10 @@ bool serialib::isDCD()
   */
 bool serialib::isRI()
 {
-#if defined (_WIN32) || defined(_WIN64)
-    DWORD modemStat;
-    GetCommModemStatus(hSerial, &modemStat);
-    return modemStat & MS_RING_ON;
-#endif
-#if defined (__linux__) || defined(__APPLE__)
     int status=0;
     //Get the current status of the RING bit
     ioctl(fd, TIOCMGET, &status);
     return status & TIOCM_RNG;
-#endif
 }
 
 
@@ -961,15 +697,10 @@ bool serialib::isRI()
   */
 bool serialib::isDTR()
 {
-#if defined (_WIN32) || defined( _WIN64)
-    return currentStateDTR;
-#endif
-#if defined (__linux__) || defined(__APPLE__)
     int status=0;
     //Get the current status of the DTR bit
     ioctl(fd, TIOCMGET, &status);
     return status & TIOCM_DTR  ;
-#endif
 }
 
 
@@ -982,15 +713,10 @@ bool serialib::isDTR()
   */
 bool serialib::isRTS()
 {
-#if defined (_WIN32) || defined(_WIN64)
-    return currentStateRTS;
-#endif
-#if defined (__linux__) || defined(__APPLE__)
     int status=0;
     //Get the current status of the CTS bit
     ioctl(fd, TIOCMGET, &status);
     return status & TIOCM_RTS;
-#endif
 }
 
 

@@ -9,348 +9,318 @@
  */
 
 #include "slmx4_vcom.h"
-//#include "sendosc.h"
-
-#define MAX_BYTES_READ 128
-#define ACK_SIZE 6
-
-#define DEBUG
-
 
 slmx4::slmx4()
 {
-	numSamplers = 0;
+	num_samples = 0;
+	strcpy(response, "");
 }
 
 int slmx4::begin(const char *port)
 {
-	timeOut timer;
-	timer.initTimer();
+	if (init_serial(port) != SUCCESS) {
+		return ERROR_SERIAL;
+	}
 
-	if (strlen(port) > PORT_NAME_LENGTH) return EXIT_FAILURE;
-	strcpy(serialport, port);
+	if (init_device() != SUCCESS) {
+		close_serial();
+		return ERROR_INIT;
+	}
 
-	if (initSerial() == EXIT_FAILURE) return EXIT_FAILURE;
-	printf("slmx4::begin - initSerial() successful\n");
+	if (open_radar() != SUCCESS) {
+		close_radar();
+		return ERROR_OPEN;
+	}
 
-	if (initDevice() == EXIT_FAILURE) return EXIT_FAILURE;
-	printf("slmx4::begin - initDevice() successful\n");
-
-	serial.setDTR();
-    serial.setRTS();
-	serial.flushReceiver();
-
-	if (openRadar() == EXIT_FAILURE) return EXIT_FAILURE;
-
-	return EXIT_SUCCESS;
+	return SUCCESS;
 }
 
-
-int slmx4::initSerial()
+int slmx4::init_serial(const char* port)
 {
 	// Connection to serial port
-	char errorOpening = serial.openDevice(serialport, 115200);
-
-	// Share buffer ptr to serial module
-	//serial.set_buffer_ptr(buf_ptr);
-
-    // If connection fails, return the error code otherwise, display a success message
-    if (errorOpening != 1) {
-    	fprintf(stderr, "ERROR connection to serial port: %i\n", errorOpening);
-//    	sendosc(string_, (void*)"ERROR connection to serial port", host_ip);
-		return EXIT_FAILURE;
-    }
+	if (serial.openDevice(port, BAUD_RATE) != 1) {
+		return ERROR_SERIAL;
+	}
 
 	serial.setDTR();
 	serial.setRTS();
 	serial.flushReceiver();
-	return EXIT_SUCCESS;
+	return SUCCESS;
 }
 
-
-int slmx4::initDevice()
+int slmx4::check_ACK(const char* source)
 {
-	serial.writeString("NVA_CreateHandle()");
-
-	if (checkACK() == EXIT_SUCCESS) {
-		#ifdef DEBUG
- 		fprintf(stderr, "SUCCESS: ACK from 'initDevice'\n");
-//		sendosc(string_, (void*)"SUCCESS: ACK from 'init_device'", host_ip);
-		#endif
-	}
- 	else { 
-		#ifdef DEBUG
-		fprintf(stderr, "ERROR: Reading ACK in 'initDevice'\n");
-//		sendosc(string_, (void*)"ERROR: Reading ACK in 'init_device'\n", host_ip);
-		return EXIT_FAILURE;
-		#endif
-	}
-	return EXIT_SUCCESS;
-}
-
-
-int slmx4::checkACK()
-{
-	char buffer[MAX_BYTES_READ];
-	int i;
+	char buffer[MAX_RESPONSE_LEN+1];
 	
-	int nBytes = serial.readBytes(buffer, MAX_BYTES_READ-1, TIMEOUT_MS);
+	int nBytes = serial.readBytes(buffer, MAX_RESPONSE_LEN, TIMEOUT_MS);
 	serial.flushReceiver();
 
-	printf("slmx4::checkACK() - nBytes = %d\n", nBytes);
-	printf("slmx4::checkACK() - buffer = ");
-	for (i = 0; i <nBytes; i++) printf("%c", buffer[i]);
-	printf("\n");
-
 	if (nBytes >= 5 && strncmp(buffer, "<ACK>", nBytes) == 0) { 
-		return EXIT_SUCCESS; 
+		return SUCCESS; 
 	}
 	else {
-		serial.closeDevice();
-		return EXIT_FAILURE;
+		fprintf(stderr, "ERROR - ACK expected and not received in %s\n", source);
+		return ERROR_ACK;
 	}
 }
 
-
-int slmx4::openRadar()
+int slmx4::init_device()
 {
-	serial.writeString("OpenRadar(X4)");
-
-	if(checkACK() == EXIT_SUCCESS) {
-		#ifdef DEBUG
- 		fprintf(stderr, "SUCCESS: ACK from 'openRadar'\n");
-//		sendosc(string_, (void*)"SUCCESS: ACK from 'OpenRadar'", host_ip);
-		#endif
-	}
- 	else { 
-		#ifdef DEBUG
-		fprintf(stderr, "ERROR: Reading ACK in 'openRadar'\n");
-//		sendosc(string_, (void*)"ERROR: Reading ACK in 'OpenRadar'\n", host_ip);
-		#endif
-		return EXIT_FAILURE;
-	}
-
-	updateNumberOfSamplers();
-
-	return EXIT_SUCCESS;
+	serial.flushReceiver();
+	serial.writeString("NVA_CreateHandle()");
+	return check_ACK("init_device()");
 }
 
-void slmx4::closeRadar()
+int slmx4::open_radar()
+{
+	serial.flushReceiver();
+	serial.writeString("OpenRadar(X4)");
+	return check_ACK("open_radar()");
+}
+
+int slmx4::close_radar()
 {
 	serial.flushReceiver();
 	serial.writeString("Close()");
-
-	if(checkACK() == EXIT_SUCCESS) {
-		#ifdef DEBUG
- 		fprintf(stderr, "SUCCESS: ACK from 'closeRadar'\n");
-//		sendosc(string_, (void*)"SUCCESS: ACK from 'CloseRadar'", host_ip);
-		#endif
-	}
- 	else { 
-		#ifdef DEBUG
-		fprintf(stderr, "ERROR: Reading ACK in 'closeRadar'\n");
-//		sendosc(string_, (void*)"ERROR: Reading ACK in 'CloseRadar'\n", host_ip);
-		#endif
-	}
-
+	return check_ACK("close_device()");
 }
 
-
-void slmx4::updateNumberOfSamplers()
+int slmx4::get_int_value(const char* command)
 {
-	char buffer[MAX_BYTES_READ];
-
-	serial.writeString("VarGetValue_ByName(SamplersPerFrame)");
-
-	usleep(10);
-
-	serial.readString(buffer, '0', MAX_BYTES_READ-1, TIMEOUT_MS);
-
-	char* token = strtok(buffer, "<");
-	if (token != NULL) {
-		numSamplers = atoi(token);
-	}
-	else {
-		fprintf(stderr, "ERROR reading number of samplers\n");
-	}
-
-	#ifdef DEBUG
-	printf("SamplersPerFrame = %d\n",numSamplers);
-	#endif
+	char* s;
+	s = get_value_by_name(command);
+	return atoi(s);
 }
 
-int slmx4::iterations()
+float slmx4::get_float_value(const char* command)
 {
-	char buffer[MAX_BYTES_READ];
+	char* s;
+	s = get_value_by_name(command);
+	return atof(s);
+}
 
-	serial.writeString("VarGetValue_ByName(Iterations)");
+int slmx4::get_dac_min()
+{
+	dac_min = get_int_value("VarGetValue_ByName(dac_min)");
+	return dac_min;
+}
 
-	serial.readString(buffer, '0', MAX_BYTES_READ-1, TIMEOUT_MS);
+int slmx4::get_dac_max()
+{
+	dac_max = get_int_value("VarGetValue_ByName(dac_max)");
+	return dac_max;
+}
 
-	char* token = strtok(buffer, "<");
-	int iterations = 0;
-	if (token != NULL) {
-		iterations = atoi(token);
-	}
-	else {
-		fprintf(stderr, "ERROR reading number of Iterations\n");
-	}
+int slmx4::get_dac_step()
+{
+	dac_step = get_int_value("VarGetValue_ByName(dac_step)");
+	return dac_step;
+}
 
-#ifdef DEBUG
-	printf("Iterations: %i\n", iterations);
-#endif
+int slmx4::get_pps()
+{
+	pps = get_int_value("VarGetValue_ByName(pps)");
+	return pps;
+}
+
+int slmx4::get_iterations()
+{
+	iterations = get_int_value("VarGetValue_ByName(iterations)");
 	return iterations;
 }
 
-int slmx4::setRegister(int cmd)
+int slmx4::get_prf_div()
 {
-
-	switch(cmd) {
-	case rx_wait:
-		serial.writeString("VarSetValue_ByName(rx_wait,0)");
-		break;
-	case frame_start:
-		serial.writeString("VarSetValue_ByName(frame_start,0.3)");
-		break;
-	case frame_end:
-		serial.writeString("VarSetValue_ByName(frame_end,4)");
-		break;
-	case ddc_en:
-		serial.writeString("VarSetValue_ByName(ddc_en,0)");
-		break;
-	case pps:
-		serial.writeString("VarSetValue_ByName(PPS,30)");
-		break;
-	}
-
-	if(checkACK() == EXIT_SUCCESS) {
-		#ifdef DEBUG
- 		fprintf(stderr, "SUCCESS: ACK from 'setRegister'\n");
-//		sendosc(string_, (void*)"SUCCESS: ACK from 'TryUpdateChip'", host_ip);
-		#endif
-	}
- 	else { 
-		#ifdef DEBUG
-		fprintf(stderr, "ERROR: Reading ACK in 'setRegister'\n");
-//		sendosc(string_, (void*)"ERROR: Reading ACK in 'TryUpdateChip'\n", host_ip);
-		#endif
-		return EXIT_FAILURE;
-	}
-
-    updateNumberOfSamplers();
-
-	return EXIT_SUCCESS;
+	prf_div = get_int_value("VarGetValue_ByName(prf_div)");
+	return prf_div;
 }
 
-int slmx4::getFrameRaw(_Float32* frame)
+float slmx4::get_prf()
 {
-	serial.flushReceiver();
-	int frameSize = numSamplers;
-	int nBytesInReceiveBuffer = 0;
+	prf = get_float_value("VarGetValue_ByName(prf)");
+	return prf;
+}
+
+float slmx4::get_fs()
+{
+	fs = get_float_value("VarGetValue_ByName(fs)");
+	return fs;
+}
+
+int slmx4::get_num_samples()
+{
+	num_samples = get_int_value("VarGetValue_ByName(num_samples)");
+	return num_samples;
+}
+
+int slmx4::get_frame_length()
+{
+	frame_length = get_int_value("VarGetValue_ByName(frame_length)");
+	return frame_length;
+}
+
+int slmx4::get_rx_wait()
+{
+	rx_wait = get_int_value("VarGetValue_ByName(rx_wait)");
+	return rx_wait;
+}
+
+int slmx4::get_tx_region()
+{
+	tx_region = get_int_value("VarGetValue_ByName(tx_region)");
+	return tx_region;
+}
+
+int slmx4::get_tx_power()
+{
+	tx_power = get_int_value("VarGetValue_ByName(tx_power)");
+	return tx_power;
+}
+
+int slmx4::get_ddc_en()
+{
+	ddc_en = get_int_value("VarGetValue_ByName(ddc_en)");
+	return ddc_en;
+}
+
+float slmx4::get_frame_offset()
+{
+	frame_offset = get_float_value("VarGetValue_ByName(frame_offset)");
+	return frame_offset;
 	
-	serial.writeString("GetFrameRaw()");
-	
+}
+
+float slmx4::get_frame_start()
+{
+	frame_start = get_float_value("VarGetValue_ByName(frame_start)");
+	return frame_start;
+}
+
+float slmx4::get_frame_end()
+{
+	frame_end = get_float_value("VarGetValue_ByName(frame_end)");
+	return frame_end;
+}
+
+float slmx4::get_sweep_time()
+{
+	sweep_time = get_float_value("VarGetValue_ByName(sweep_time)");
+	return sweep_time;
+}
+
+float slmx4::get_unambiguous_range()
+{
+	unambiguous_range = get_float_value("VarGetValue_ByName(unambiguous_range)");
+	return unambiguous_range;
+}
+
+float slmx4::get_res()
+{
+	res = get_float_value("VarGetValue_ByName(res)");
+	return res;
+}
+
+float slmx4::get_fs_rf()
+{
+	fs_rf = get_float_value("VarGetValue_ByName(fs_rf)");
+	return fs_rf;
+}
+
+void slmx4::refresh_all_parameters()
+{
+	get_dac_min();
+	get_dac_max();
+	get_dac_step();
+	get_pps();
+	get_iterations();
+	get_prf_div();
+	get_prf();
+	get_fs();
+	get_num_samples();
+	get_frame_length();
+	get_rx_wait();
+	get_tx_region();
+	get_tx_power();
+	get_ddc_en();
+	get_frame_offset();
+	get_frame_start();
+	get_frame_end();
+	get_sweep_time();
+	get_unambiguous_range();
+	get_res();
+	get_fs_rf();
+}
+
+int slmx4::get_frame(const char* command, float* frame) 
+{
 	timeOut timer;
-	timer.initTimer();
+	int n_bytes_read;
+	int n_bytes_to_read = num_samples * 4;
 
-	while (1) {
-		nBytesInReceiveBuffer = serial.available();
-		if (timer.elapsedTime_ms() > TIMEOUT_MS) {
-			fprintf(stderr, "Timeout in getFrameRaw\n");
-			break;
-		}
-		if (nBytesInReceiveBuffer >= frameSize*4) {
-			serial.readBytes(frame, frameSize * 4, 1);
-			break;
-		}
-	}
-
-	/* #ifdef DEBUG
-	for (int j = 0; j < frameSize -1; ++j)
-		printf("%f, ", frame[j]);
-	#endif */
-
-
-	if(checkACK() == EXIT_SUCCESS) {
-		#ifdef DEBUG
- 		fprintf(stderr, "SUCCESS: ACK from 'getFrameRaw'\n");
-//		sendosc(string_, (void*)"SUCCESS: ACK from 'getFrameRaw'", host_ip);
-		#endif
-	}
- 	else { 
-		#ifdef DEBUG
-		fprintf(stderr, "ERROR: Reading ACK in 'getFrameRaw'\n");
-//		sendosc(string_, (void*)"ERROR: Reading ACK in 'getFrameRaw'\n", host_ip);
-		#endif
-		return EXIT_FAILURE;
-	}
-
-	return EXIT_SUCCESS;
-}
-
-int slmx4::getFrameNormalized(_Float32* frame)
-{
 	serial.flushReceiver();
-	int frameSize = numSamplers;
-	int nBytesInReceiveBuffer = 0;
+	serial.writeString(command);
 	
-	serial.writeString("GetFrameNormalized()");
-	
-	timeOut timer;
 	timer.initTimer();
-
-	while(1) {
-		nBytesInReceiveBuffer = serial.available();
-		if (timer.elapsedTime_ms() > TIMEOUT_MS) {
-			printf("Timeout\n");
-			break;
-		}
-		if(nBytesInReceiveBuffer >= frameSize*4) {
-			serial.readBytes(frame, frameSize * 4, 1); 
-			break;
+	while (serial.available() == 0) {
+		if (timer.elapsedTime_ms() >= TIMEOUT_MS) {
+			return ERROR_TIMEOUT;
 		}
 	}
 
-/*	#ifdef DEBUG
-	for(int j = 0; j < frameSize -1; ++j)
-		printf("%f, ", frame[j]);
-	#endif */
-
-	if(checkACK() == EXIT_SUCCESS) {
-		#ifdef DEBUG
- 		fprintf(stderr, "SUCCESS: ACK from 'getFrameNormalized'\n");
-//		sendosc(string_, (void*)"SUCCESS: ACK from 'getFrameNormalized'", host_ip);
-		#endif
-	}
- 	else { 
-		#ifdef DEBUG
-		fprintf(stderr, "ERROR: Reading ACK in 'getFrameNormalized'\n");
-//		sendosc(string_, (void*)"ERROR: Reading ACK in 'getframenormalized'\n", host_ip);
-		#endif
-		return EXIT_FAILURE;
+	n_bytes_read = serial.readBytes(frame, n_bytes_to_read, 1);
+	serial.flushReceiver();
+	if (n_bytes_read != n_bytes_to_read) {
+		return ERROR_BYTES_READ;
 	}
 
-	return EXIT_SUCCESS;
+	return SUCCESS;
 }
 
-/*void slmx4::setHost(const char *addr)
+int slmx4::get_frame_raw(float* frame) 
 {
-	strcpy(host_ip, addr);
-} */
+	return get_frame("GetFrameRaw()", frame);
+}
+
+int slmx4::get_frame_normalized(float* frame)  
+{
+	return get_frame("GetFrameNormalized()", frame);
+}
 
 void slmx4::end()
 {
-	closeRadar();
-	closeSerial();
+	close_radar();
+	close_serial();
 }
 
-void slmx4::flushSerial() 
+void slmx4::flush_serial() 
 {
 	serial.flushReceiver();
 }
 
-void slmx4::closeSerial() 
+void slmx4::close_serial() 
 {
 	serial.closeDevice();
 }
 
+char* slmx4::get_value_by_name(const char* command)
+{
+	int n_bytes_read;
+
+	serial.flushReceiver();
+	serial.writeString(command);
+	n_bytes_read = serial.readString(response, '>', MAX_RESPONSE_LEN, TIMEOUT_MS);
+
+	// strip out "<ACK>" and terminate string with NULL char
+	if (n_bytes_read >= 5) 
+		response[n_bytes_read-5] = '\0';
+	
+	return response;
+}
+
+
+int slmx4::set_value_by_name(const char* command)
+{
+	serial.flushReceiver();
+	serial.writeString(command);
+	return check_ACK("set_value_by_name");
+}

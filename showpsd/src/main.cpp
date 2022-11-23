@@ -1,13 +1,17 @@
 #include <stdio.h> 
 #include <stdlib.h> 
-#include <stddef.h>
-#include <stdarg.h>
 #include <string.h>
 #include <signal.h>
+#include <unistd.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <sys/ioctl.h>
 
 #include "slmx4_vcom.h"
 
 #define MAX_FRAME_SIZE 1535
+#define FIFO_MODE 0666
+#define DATA_FILE_NAME "./DATA"
 
 const char* SERIAL_PORT = "/dev/serial/by-id/usb-NXP_SEMICONDUCTORS_MCU_VIRTUAL_COM_DEMO-if00";
 
@@ -16,19 +20,20 @@ slmx4 sensor;
 float sensor_data[MAX_FRAME_SIZE];
 
 void display_slmx4_status();
+void clean_up(int sig);
+void launch_viewer();
 
-void clean_up(int sig) {
-	printf("Close sensor\n");
-	if (fd != NULL) fclose(fd);
-	fd = NULL;
-	sensor.end();
-	exit(EXIT_SUCCESS);
-}
 
 int main(int argc, char* argv[])
 {
 	int i;
 	long frame_count = 1;
+
+	unlink(DATA_FILE_NAME);
+	if (argc == 1) {
+		mkfifo(DATA_FILE_NAME, FIFO_MODE);
+		launch_viewer();
+	}
 
 	signal(SIGINT, clean_up);
 
@@ -46,43 +51,39 @@ int main(int argc, char* argv[])
     sensor.set_value_by_name("VarSetValue_ByName(ddc_en,1)");
 	display_slmx4_status();
 
-	sensor.get_num_samples();
-	printf("sensor.n_samples = %d\n", sensor.num_samples);
-
-	if (argc == 2) {
-		clean_up(0);
-	}
-
-	sensor.num_samples = sensor.num_samples * 2;
-
 	printf("Output data to file DATA\n");
-	fd = fopen("./DATA", "w");
+	fd = fopen(DATA_FILE_NAME, "w");
 	if(fd == NULL) {
-		fprintf(stderr,"ERROR: Can not open ./DATA for writing\n");
+		fprintf(stderr,"ERROR: Can not open %s for writing\n", DATA_FILE_NAME);
 		exit(EXIT_FAILURE);
 	}
+
+	int size = 0;
+	int ifd = fileno(fd);
 	
-	int done = 0;
-	while (!done) {
-		printf("Frame %ld\r", frame_count++);
+	while (1) {
+		printf("Frame %ld, ", frame_count++);
 		fflush(stdout);
 		sensor.get_frame_normalized(sensor_data);
 
 		// sensor.getFrameNormalized(sensor_data);
 
-		fprintf(fd, "%d\n", sensor.num_samples);
-		for (i = 0; i < sensor.num_samples; i++) {
+		fprintf(fd, "%d\n", sensor.get_num_samples());
+		for (i = 0; i < sensor.get_num_samples(); i++) {
 			fprintf(fd,"%f\n",sensor_data[i]);
 		}
 		fflush(fd);
-		usleep(500000);
-		done = 1;
+
+		usleep(250000);
+		ioctl(ifd, FIONREAD, &size);
+		printf(" size = %d      \r", size);
+
+		if (argc != 1) {
+			break;
+		}
 	}
 
-	fclose(fd);
-	fd = NULL;
-	printf("Close sensor\n");
-	sensor.end();
+	clean_up(0);
 
 	return EXIT_SUCCESS;
 }
@@ -103,7 +104,7 @@ void display_slmx4_status()
 	printf("rx_wait           = %d\n", sensor.get_rx_wait());
 	printf("tx_region         = %d\n", sensor.get_tx_region());
 	printf("tx_power          = %d\n", sensor.get_tx_power());
-	printf("ddc_en            = %d\n", sensor.get_ddc_en());
+	printf("ddc_en            = %d\n", sensor.is_ddc_en());
 	printf("frame_offset      = %e\n", sensor.get_frame_offset());
 	printf("frame_start       = %e\n", sensor.get_frame_start());
 	printf("frame_end         = %e\n", sensor.get_frame_end());
@@ -111,4 +112,23 @@ void display_slmx4_status()
 	printf("unambiguous_range = %e\n", sensor.get_unambiguous_range());
 	printf("res               = %e\n", sensor.get_res());
 	printf("fs_rf             = %e\n", sensor.get_fs_rf());
+}
+
+void clean_up(int sig)
+{
+	printf("\nClose sensor\n");
+	if (fd != NULL) fclose(fd);
+	fd = NULL;
+	sensor.end();
+	exit(EXIT_SUCCESS);
+}
+
+void launch_viewer()
+{
+	int pid = fork();
+	if (pid == 0) {
+		execlp("python", "python", "plotgraph.py", NULL);
+		fprintf(stderr, "ERROR - Unable to start viewer\n");
+		exit(EXIT_FAILURE);
+	}
 }

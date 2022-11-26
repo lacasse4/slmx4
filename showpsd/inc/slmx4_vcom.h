@@ -25,7 +25,7 @@
 #define ERROR_READBYTES  -9
 #define ERROR_VALUE      -10
 
-#define MIN_ABS_VALUE     0.001
+#define ZERO_DB_POWER     530.0
 
 class slmx4
 {

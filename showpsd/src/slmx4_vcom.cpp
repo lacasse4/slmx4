@@ -458,17 +458,13 @@ int slmx4::get_bytes(const char* command, float* frame, int n_bytes)
 void slmx4::compute_psd(float* frame)
 {
 	int i;
-	float re, im, power, reference;
-
-	re = frame[0];
-	im = frame[1];
-	reference = compute_power(re, im);
+	float re, im, power;
 
 	for (i = 0; i < num_samples; i++) {
 		re = frame[i*2];
 		im = frame[i*2+1];
 		power = compute_power(re, im);
-		frame[i] = 10*log10f(power/reference);
+		frame[i] = 10*log10f(power/ZERO_DB_POWER);
 	}
 
 	memset(&frame[num_samples], 0, num_samples*4);

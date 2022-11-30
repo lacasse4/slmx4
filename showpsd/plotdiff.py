@@ -35,7 +35,7 @@ while True:
     axes.set_xlabel("Distance in metres");
     axes.set_ylabel("PSD in db");
     axes.set_autoscale_on(False)
-    axes.set_ylim(bottom=-60, top=0)
+    axes.set_ylim(bottom=0, top=+20)
     axes.set_xlim(left=frame_start, right=frame_end)
     
     if first:

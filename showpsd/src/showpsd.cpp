@@ -6,7 +6,6 @@
 #include <unistd.h>
 #include <sys/types.h>
 #include <sys/stat.h>
-#include <sys/ioctl.h>
 
 #include "slmx4_vcom.h"
 
@@ -62,6 +61,16 @@ int main(int argc, char* argv[])
 		exit(EXIT_FAILURE);
 	}
 
+//    sensor.set_value_by_name("VarSetValue_ByName(iterations,64)");
+//    sensor.set_value_by_name("VarSetValue_ByName(pps,128)");
+
+//    sensor.set_value_by_name("VarSetValue_ByName(fs,2.9)");
+
+    sensor.set_value_by_name("VarSetValue_ByName(dac_min,896)");
+    sensor.set_value_by_name("VarSetValue_ByName(dac_max,1152)");
+
+    sensor.set_value_by_name("VarSetValue_ByName(frame_start,2.0)");
+    sensor.set_value_by_name("VarSetValue_ByName(frame_end,4.0)");
     sensor.set_value_by_name("VarSetValue_ByName(ddc_en,1)");
 	display_slmx4_status();
 
@@ -70,30 +79,25 @@ int main(int argc, char* argv[])
 	if(fd == NULL) {
 		fprintf(stderr,"ERROR: Can not open %s for writing\n", DATA_FILE_NAME);
 		exit(EXIT_FAILURE);
-	}
-
-	int size = 0;
-	int ifd = fileno(fd);
-	
+	}	
 	
 	while (1) {
 		printf("Frame %ld, ", frame_count++);
 		fflush(stdout);
 		sensor.get_frame_normalized(sensor_data);
 		peak = find_highest_peak(&sensor, sensor_data, 0.7, 2.0);
-		printf("distance = %4.2f, ", peak.distance);
-
-		// sensor.getFrameNormalized(sensor_data);
+		printf("distance = %5.3f, ", peak.distance);
 
 		fprintf(fd, "%d\n", sensor.get_num_samples());
+		fprintf(fd, "%f\n", sensor.get_frame_start());
+		fprintf(fd, "%f\n", sensor.get_frame_end());
 		for (i = 0; i < sensor.get_num_samples(); i++) {
 			fprintf(fd,"%f\n",sensor_data[i]);
 		}
 		fflush(fd);
 
-		usleep(250000);
-		ioctl(ifd, FIONREAD, &size);
-		printf(" write buffer = %d      \r", size);
+		usleep(300000);
+		printf("\r");
 
 		if (argc != 1) {
 			break;

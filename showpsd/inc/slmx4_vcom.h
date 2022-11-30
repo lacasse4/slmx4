@@ -1,10 +1,7 @@
-#ifndef SENSOR_DEF
-#define SENSOR_DEF
+#ifndef SLMX4_VCOM_H
+#define SLMX4_VCOM_H
 
 #include "serialib.h"
-
-//#define DEBUG
-
 
 #define BAUD_RATE         115200
 #define TIMEOUT_MS        1000

@@ -460,11 +460,16 @@ void slmx4::compute_psd(float* frame)
 	int i;
 	float re, im, power;
 
+	// re = frame[0];
+	// im = frame[1];
+	// float zero_db = compute_power(re, im);
+
 	for (i = 0; i < num_samples; i++) {
 		re = frame[i*2];
 		im = frame[i*2+1];
 		power = compute_power(re, im);
 		frame[i] = 10*log10f(power/ZERO_DB_POWER);
+		// frame[i] = 10*log10f(power/zero_db);
 	}
 
 	memset(&frame[num_samples], 0, num_samples*4);

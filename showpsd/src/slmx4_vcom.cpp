@@ -203,15 +203,15 @@ float slmx4::get_fs_rf()
 }
 
 // Get a radar frame in raw format
-int slmx4::get_frame_raw(float* frame) 
+int slmx4::get_frame_raw(float* frame, int in_db) 
 {
-	return get_frame("GetFrameRaw()", frame);
+	return get_frame("GetFrameRaw()", frame, in_db);
 }
 
 // Get a radar frame in normalized format
-int slmx4::get_frame_normalized(float* frame)  
+int slmx4::get_frame_normalized(float* frame, int in_db)  
 {
-	return get_frame("GetFrameNormalized()", frame);
+	return get_frame("GetFrameNormalized()", frame, in_db);
 }
 
 // Send a command such as "VarGetValue_ByName(dac_min)"
@@ -398,7 +398,7 @@ void slmx4::refresh_all_parameters()
 
 // Get a radar frame from SLMX4
 // Compute power spectrum density if required
-int slmx4::get_frame(const char* command, float* frame) 
+int slmx4::get_frame(const char* command, float* frame, int in_db) 
 {
 	int n_bytes;
 	int status;
@@ -410,7 +410,12 @@ int slmx4::get_frame(const char* command, float* frame)
 		if (status != SUCCESS) {
 			return status;
 		}
-		compute_psd(frame);
+		if (in_db) {
+			compute_psd_in_db(frame);
+		}
+		else {
+			compute_psd(frame);
+		}
 	}
 	else {
 		n_bytes = num_samples * sizeof(float);
@@ -455,7 +460,7 @@ int slmx4::get_bytes(const char* command, float* frame, int n_bytes)
  * it is place back in 'frame'.
  * The second half of 'frame' is set to 0.0
  */ 
-void slmx4::compute_psd(float* frame)
+void slmx4::compute_psd_in_db(float* frame)
 {
 	int i;
 	float re, im, power;
@@ -474,6 +479,30 @@ void slmx4::compute_psd(float* frame)
 
 	memset(&frame[num_samples], 0, num_samples*4);
 }
+
+/*
+ * Compute the power spectrum density (psd)
+ * frame provided that:
+ *   - its size is num_samples * 2
+ * 	 - real and imaginary data are interleaved
+ * The result is half the size of the input data and
+ * it is place back in 'frame'.
+ * The second half of 'frame' is set to 0.0
+ */ 
+void slmx4::compute_psd(float* frame)
+{
+	int i;
+	float re, im;
+
+	for (i = 0; i < num_samples; i++) {
+		re = frame[i*2];
+		im = frame[i*2+1];
+		frame[i] = sqrt(compute_power(re, im));
+	}
+
+	memset(&frame[num_samples], 0, num_samples*4);
+}
+
 
 float slmx4::compute_power(float re, float im)
 {

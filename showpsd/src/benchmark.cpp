@@ -51,7 +51,7 @@ int main(int argc, char* argv[])
 	display_slmx4_status();
 	
 		timer.initTimer();
-		sensor.get_frame_normalized(sensor_data);
+		sensor.get_frame_normalized(sensor_data, POWER_IN_DB);
 		unsigned long int ms = timer.elapsedTime_ms();
 		printf("\nTime to aquire a frame = %lu ms\n", ms);
 

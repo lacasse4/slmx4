@@ -23,6 +23,8 @@
 #define ERROR_VALUE      -10
 
 #define ZERO_DB_POWER     530.0
+#define POWER_IN_DB		  1
+#define POWER_IN_WATT     0
 
 class slmx4
 {
@@ -65,8 +67,9 @@ class slmx4
 	float get_float_value(const char* command);
 	void  refresh_all_parameters();
 	void  ensure_refreshed_data();
-	int   get_frame(const char* command, float* frame);
+	int   get_frame(const char* command, float* frame, int in_db);
 	int   get_bytes(const char* comamnd, float* frame, int n_bytes);
+	void  compute_psd_in_db(float* frame);
 	void  compute_psd(float* frame);
 	float compute_power(float re, float im);
 
@@ -77,8 +80,8 @@ public:
 	int   begin(const char* port);
 	void  end();
 
-	int   get_frame_normalized(float* frame);
-	int   get_frame_raw(float* frame);
+	int   get_frame_normalized(float* frame, int in_db);
+	int   get_frame_raw(float* frame, int in_db);
 
 	int   get_dac_min();
 	int   get_dac_max();

@@ -6,9 +6,10 @@ import signal
 def handler(signum, frame):
     pass
 
-signal.signal(signal.SIGINT, handler)
+# signal.signal(signal.SIGINT, handler)
 
 first = True
+frame_count = 0
 
 figure, axes = plt.subplots(figsize=(16,8))
 figure.show()
@@ -32,11 +33,12 @@ while True:
 
     axes.clear()
     axes.set(title="Power spectrum density", xlabel="n=%s" % n)
-    axes.set_xlabel("Distance in metres");
+    axes.set_xlabel("Distance in metres (frame " + str(frame_count) + ")")
     axes.set_ylabel("PSD in db");
     axes.set_autoscale_on(False)
-    axes.set_ylim(bottom=0, top=+20)
+    axes.set_ylim(bottom=-0.1, top=0.1)
     axes.set_xlim(left=frame_start, right=frame_end)
+    frame_count += 1
     
     if first:
         first = False
@@ -46,5 +48,6 @@ while True:
     figure.canvas.draw()
     figure.canvas.flush_events()
 
+input('Press enter to continue: ')
 fd.close()
 plt.close(figure)

@@ -10,6 +10,7 @@
 #include "slmx4_vcom.h"
 #include "peak.h"
 #include "serialib.h"
+#include "frameFilter.h"
 
 #define MAX_FRAME_SIZE 188
 #define NUM_FRAMES 200
@@ -29,8 +30,12 @@ float diff_frames[NUM_FRAMES][MAX_FRAME_SIZE];
 float filtered_frames[NUM_FRAMES][MAX_FRAME_SIZE];
 unsigned long int times[NUM_FRAMES];
 
+frameFilter _filters_mem[MAX_FRAME_SIZE];
+frameFilter* filters[MAX_FRAME_SIZE];
+
 void  difference(float diff_frames[NUM_FRAMES][MAX_FRAME_SIZE], float in_frames[NUM_FRAMES][MAX_FRAME_SIZE], int num_samples, int frame_index);
 void  moving_average(float filtered_frames[NUM_FRAMES][MAX_FRAME_SIZE], float in_frames[NUM_FRAMES][MAX_FRAME_SIZE], int num_samples, int frame_index, int window_size);
+void  apply_frame_filters(float filtered_frames[NUM_FRAMES][MAX_FRAME_SIZE], float in_frames[NUM_FRAMES][MAX_FRAME_SIZE], int num_samples, int frame_index, frameFilter** filters);
 peak_t find_highest_peak(float* signal, int num_samples, float frame_start, float frame_end, float from, float to);
 
 void display_slmx4_status();
@@ -55,6 +60,11 @@ int main(int argc, char* argv[])
 	memset(raw_frames, 0, NUM_FRAMES*MAX_FRAME_SIZE*sizeof(float));
 	memset(diff_frames, 0, NUM_FRAMES*MAX_FRAME_SIZE*sizeof(float));
 	memset(filtered_frames, 0, NUM_FRAMES*MAX_FRAME_SIZE*sizeof(float));
+
+	for (i = 0; i < MAX_FRAME_SIZE; i++) {
+		filters[i] = &_filters_mem[i];
+		frameFilter_init(filters[i]);
+	}
 
 	printf("Open serial port: %s\n", SERIAL_PORT);
 	if (access(SERIAL_PORT, F_OK) < 0) {
@@ -88,12 +98,10 @@ int main(int argc, char* argv[])
 		if (i >= 1) {
 			difference(diff_frames, raw_frames, sensor.get_num_samples(), i);
 		}
-		if (i >= WINDOW_SIZE-1) {
-			moving_average(filtered_frames, diff_frames, sensor.get_num_samples(), i, WINDOW_SIZE);
-		}
+		apply_frame_filters(filtered_frames, diff_frames, sensor.get_num_samples(), i, filters);
 		times[i] = timer.elapsedTime_ms();
 	}
-	printf("Data scquisition ends\n");
+	printf("Data acquisition ends\n");
 
 
 	// Write data to file
@@ -203,5 +211,15 @@ void moving_average(float filtered_frames[NUM_FRAMES][MAX_FRAME_SIZE], float in_
 			sum += in_frames[frame_index-j][i];
 		}
 		filtered_frames[frame_index][i] = sum / window_size;
+	}
+}
+
+void apply_frame_filters(float filtered_frames[NUM_FRAMES][MAX_FRAME_SIZE], float in_frames[NUM_FRAMES][MAX_FRAME_SIZE], int num_samples, int frame_index, frameFilter** filters)
+{
+	int i;
+	
+	for (i = 0; i < num_samples; i++) {
+		frameFilter_put(filters[i], in_frames[frame_index][i]);
+		filtered_frames[frame_index][i] = frameFilter_get(filters[i]);
 	}
 }

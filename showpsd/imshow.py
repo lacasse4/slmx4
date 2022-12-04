@@ -24,15 +24,20 @@ def read_data(filename):
             
         z.append(y)
 
-fr = read_data("DATA-iter64-pps128-frame-141ms")
-z5 = read_data("DATA-iter64-pps128-wind5-141ms")
-z1 = read_data("DATA-iter64-pps128-wind1-141ms")
+fr33 = read_data("DATA-iter64-pps128-fra33-141ms")
+fr13 = read_data("DATA-iter64-pps128-fra13-141ms")
+fr21 = read_data("DATA-iter64-pps128-fra21-141ms")
+# fr63 = read_data("DATA-iter64-pps128-fra63-141ms")
+# z5 = read_data("DATA-iter64-pps128-wind5-141ms")
+# z3 = read_data("DATA-iter64-pps128-wind3-141ms")
+# z1 = read_data("DATA-iter64-pps128-wind1-141ms")
 
 plt.style.use('_mpl-gallery-nogrid')
 figure, axes = plt.subplots(1, 3, figsize=(20,8))
-axes[0].imshow(z1)
-axes[1].imshow(z5)
-axes[2].imshow(fr)
+axes[0].imshow(fr13)
+axes[1].imshow(fr21)
+axes[2].imshow(fr33)
+
 
 plt.show()
 plt.close(figure)

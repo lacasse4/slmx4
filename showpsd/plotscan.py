@@ -28,7 +28,7 @@ def read_data(filename):
         z.append(y)
 
 
-fr, n, frame_start, frame_end = read_data("DATA-iter64-pps128-frame-141ms")
+fr, n, frame_start, frame_end = read_data("DATA-iter64-pps128-fra33-141ms")
 print("n = " + str(n))
 print("frame_start = " + str(frame_start))
 print("frame_end = " + str(frame_end))
@@ -49,7 +49,7 @@ for i in range(len(fr[0])):
     axes.set_xlabel("Time in 141 ms increment")
     axes.set_ylabel("PSD in db");
     axes.set_autoscale_on(False)
-    axes.set_ylim(bottom=-0.1, top=0.1)
+    axes.set_ylim(bottom=-0.2, top=0.2)
     axes.set_xlim(left=0, right=len(fr))
     if first:
         first = False
@@ -57,6 +57,7 @@ for i in range(len(fr[0])):
     axes.plot(x, y, 'b-')
     figure.canvas.draw()
     figure.canvas.flush_events()
+    input(str(i))
 
 plt.close(figure)
 

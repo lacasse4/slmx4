@@ -8,19 +8,19 @@ FIR filter designed with
 
 sampling frequency: 7 Hz
 
-* 0 Hz - 0.2 Hz
+* 0 Hz - 0.1 Hz
   gain = 1
   desired ripple = 5 dB
-  actual ripple = 3.9627724820004313 dB
+  actual ripple = 2.773164851238787 dB
 
-* 0.35 Hz - 3.5 Hz
+* 0.2 Hz - 3.5 Hz
   gain = 0
   desired attenuation = -20 dB
-  actual attenuation = -20.438909072505655 dB
+  actual attenuation = -23.4638667316325 dB
 
 */
 
-#define FRAMEFILTER_TAP_NUM 33
+#define FRAMEFILTER_TAP_NUM 63
 
 typedef struct {
   float history[FRAMEFILTER_TAP_NUM];

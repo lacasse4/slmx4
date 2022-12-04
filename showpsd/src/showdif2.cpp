@@ -8,7 +8,6 @@
 #include <sys/stat.h>
 
 #include "slmx4_vcom.h"
-#include "peak.h"
 #include "serialib.h"
 #include "frameFilter.h"
 
@@ -36,7 +35,6 @@ frameFilter* filters[MAX_FRAME_SIZE];
 void  difference(float diff_frames[NUM_FRAMES][MAX_FRAME_SIZE], float in_frames[NUM_FRAMES][MAX_FRAME_SIZE], int num_samples, int frame_index);
 void  moving_average(float filtered_frames[NUM_FRAMES][MAX_FRAME_SIZE], float in_frames[NUM_FRAMES][MAX_FRAME_SIZE], int num_samples, int frame_index, int window_size);
 void  apply_frame_filters(float filtered_frames[NUM_FRAMES][MAX_FRAME_SIZE], float in_frames[NUM_FRAMES][MAX_FRAME_SIZE], int num_samples, int frame_index, frameFilter** filters);
-peak_t find_highest_peak(float* signal, int num_samples, float frame_start, float frame_end, float from, float to);
 
 void display_slmx4_status();
 void clean_up(int sig);
@@ -178,15 +176,6 @@ void launch_viewer()
 		fprintf(stderr, "ERROR - Unable to start viewer\n");
 		exit(EXIT_FAILURE);
 	}
-}
-
-peak_t find_highest_peak_slmx4(slmx4* sensor, float* signal, float from, float to)
-{
-	return find_highest_peak(signal,
-	    sensor->get_num_samples(),
-		sensor->get_frame_start(),
-		sensor->get_frame_end(),
-		from, to);
 }
 
 

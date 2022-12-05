@@ -24,8 +24,8 @@ def read_data(filename):
             
         z.append(y)
 
-maxrms = read_data("DATA-iter64-pps128-maxrms-141ms")
-# rms = read_data("DATA-iter64-pps128-rms-141ms")
+# maxrms = read_data("DATA-iter64-pps128-maxrms-141ms")
+rms = read_data("DATA-iter64-pps128-rms-141ms")
 # fr33 = read_data("DATA-iter64-pps128-fra33-141ms")
 # fr13 = read_data("DATA-iter64-pps128-fra13-141ms")
 # fr21 = read_data("DATA-iter64-pps128-fra21-141ms")
@@ -38,7 +38,7 @@ plt.style.use('_mpl-gallery-nogrid')
 figure, axes = plt.subplots(figsize=(8,8))
 # axes[0].imshow(fr13)
 # axes[1].imshow(fr21)
-axes.imshow(maxrms)
+axes.imshow(rms)
 
 
 plt.show()

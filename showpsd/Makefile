@@ -1,6 +1,6 @@
 $(shell mkdir -p bin)
 
-all: bin/showpsd bin/showdif bin/benchmark bin/showdif2 bin/showrms
+all: bin/showpsd bin/showdif bin/benchmark bin/showdif2 bin/showrms bin/showfreq
 
 bin/showpsd: src/showpsd.cpp src/slmx4_vcom.cpp src/serialib.cpp inc/slmx4_vcom.h inc/serialib.h
 	g++ -g -Wall -o bin/showpsd -I inc src/showpsd.cpp src/slmx4_vcom.cpp src/serialib.cpp
@@ -19,6 +19,10 @@ bin/showdif2: src/showdif2.cpp src/peak.c src/slmx4_vcom.cpp src/serialib.cpp sr
 bin/showrms: src/showrms.cpp src/slmx4_vcom.cpp src/serialib.cpp src/rms.c src/frameFilter.c \
 			 inc/slmx4_vcom.h inc/serialib.h inc/rms.h inc/frameFilter.h
 	g++ -g -Wall -o bin/showrms -I inc src/showrms.cpp src/slmx4_vcom.cpp src/serialib.cpp src/rms.c src/frameFilter.c
+
+bin/showfreq: src/showfreq.cpp src/slmx4_vcom.cpp src/serialib.cpp src/rms.c src/frameFilter.c src/zeroxing.c \
+			 inc/slmx4_vcom.h inc/serialib.h inc/rms.h inc/frameFilter.h inc/zeroxing.h
+	g++ -g -Wall -o bin/showfreq -I inc src/showfreq.cpp src/slmx4_vcom.cpp src/serialib.cpp src/rms.c src/frameFilter.c src/zeroxing.c
 
 clean:
 	rm -rf bin

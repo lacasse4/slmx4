@@ -1,5 +1,6 @@
 # importing the required module
 import matplotlib.pyplot as plt
+import sys
 # import numpy as np
 
 def read_data(filename):
@@ -24,22 +25,19 @@ def read_data(filename):
             
         z.append(y)
 
-# maxrms = read_data("DATA-iter64-pps128-maxrms-141ms")
-rms = read_data("DATA-iter64-pps128-rms-141ms")
-# fr33 = read_data("DATA-iter64-pps128-fra33-141ms")
-# fr13 = read_data("DATA-iter64-pps128-fra13-141ms")
-# fr21 = read_data("DATA-iter64-pps128-fra21-141ms")
-# fr63 = read_data("DATA-iter64-pps128-fra63-141ms")
-# z5 = read_data("DATA-iter64-pps128-wind5-141ms")
-# z3 = read_data("DATA-iter64-pps128-wind3-141ms")
-# z1 = read_data("DATA-iter64-pps128-wind1-141ms")
+if len(sys.argv) != 3:
+    print("usage: imshow.py file1 file2")
+    quit()
+    
+data1 = read_data(sys.argv[1])
+data2 = read_data(sys.argv[2])
 
 plt.style.use('_mpl-gallery-nogrid')
-figure, axes = plt.subplots(figsize=(8,8))
-# axes[0].imshow(fr13)
-# axes[1].imshow(fr21)
-axes.imshow(rms)
-
+figure, axes = plt.subplots(1, 2, figsize=(16,8))
+axes[0].imshow(data1)
+axes[0].set(title=sys.argv[1])
+axes[1].imshow(data2)
+axes[1].set(title=sys.argv[2])
 
 plt.show()
 plt.close(figure)

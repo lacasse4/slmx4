@@ -23,7 +23,6 @@
 
 const char* SERIAL_PORT = "/dev/serial/by-id/usb-NXP_SEMICONDUCTORS_MCU_VIRTUAL_COM_DEMO-if00";
 
-FILE* fd = NULL;
 slmx4 sensor;
 timeOut timer;
 float acquisition_frame[MAX_FRAME_SIZE*2];
@@ -53,7 +52,7 @@ void  apply_frame_filters(float filtered_frames[NUM_FRAMES][MAX_FRAME_SIZE], flo
     int num_samples, int frame_index, frameFilter** filters);
 void  apply_rms_filters(float rms_frames[NUM_FRAMES][MAX_FRAME_SIZE], float in_frames[NUM_FRAMES][MAX_FRAME_SIZE], 
     int num_samples, int frame_index, rms_t** rms);
-int   find_max(float in_frames[NUM_FRAMES][MAX_FRAME_SIZE], 
+void  find_max(float max_frames[NUM_FRAMES][MAX_FRAME_SIZE], float in_frames[NUM_FRAMES][MAX_FRAME_SIZE], 
     int num_samples, int frame_index);
 void  compute_zeroxing(float freq_frames[NUM_FRAMES][MAX_FRAME_SIZE], float in_frames[NUM_FRAMES][MAX_FRAME_SIZE], float rms_frames[NUM_FRAMES][MAX_FRAME_SIZE], 
     int num_samples, int frame_index, float sampling_rate, zeroxing_t** zeroxing);
@@ -61,14 +60,14 @@ void  compute_zeroxing(float freq_frames[NUM_FRAMES][MAX_FRAME_SIZE], float in_f
 void  display_slmx4_status();
 void  clean_up(int sig);
 void  launch_viewer();
+int   write_file(const char* filename, float frames[NUM_FRAMES][MAX_FRAME_SIZE], slmx4* sensor);
 
 
 int main(int argc, char* argv[])
 {
-	int i, j;
 	// peak_t peak;
 
-	unlink(DATA_FILE_NAME);
+	// unlink(DATA_FILE_NAME);
 	// if (argc == 1) {
 	// 	mkfifo(DATA_FILE_NAME, FIFO_MODE);
 	// 	launch_viewer();
@@ -77,24 +76,24 @@ int main(int argc, char* argv[])
 	signal(SIGINT, clean_up);
 
 	memset(acquisition_frame, 0, MAX_FRAME_SIZE*2*sizeof(float));
-	memset(raw_frames, 0, NUM_FRAMES*MAX_FRAME_SIZE*sizeof(float));
-	memset(diff_frames, 0, NUM_FRAMES*MAX_FRAME_SIZE*sizeof(float));
-	memset(filtered_frames, 0, NUM_FRAMES*MAX_FRAME_SIZE*sizeof(float));
-	memset(rms_frames, 0, NUM_FRAMES*MAX_FRAME_SIZE*sizeof(float));
-	memset(max_frames, 0, NUM_FRAMES*MAX_FRAME_SIZE*sizeof(float));
-	memset(freq_frames, 0, NUM_FRAMES*MAX_FRAME_SIZE*sizeof(float));
+	memset(raw_frames,        0, NUM_FRAMES*MAX_FRAME_SIZE*sizeof(float));
+	memset(diff_frames,       0, NUM_FRAMES*MAX_FRAME_SIZE*sizeof(float));
+	memset(filtered_frames,   0, NUM_FRAMES*MAX_FRAME_SIZE*sizeof(float));
+	memset(rms_frames,        0, NUM_FRAMES*MAX_FRAME_SIZE*sizeof(float));
+	memset(max_frames,        0, NUM_FRAMES*MAX_FRAME_SIZE*sizeof(float));
+	memset(freq_frames,       0, NUM_FRAMES*MAX_FRAME_SIZE*sizeof(float));
 
-	for (i = 0; i < MAX_FRAME_SIZE; i++) {
+	for (int i = 0; i < MAX_FRAME_SIZE; i++) {
 		filters[i] = &_filters_mem[i];
 		frameFilter_init(filters[i]);
 	}
 
-	for (i = 0; i < MAX_FRAME_SIZE; i++) {
+	for (int i = 0; i < MAX_FRAME_SIZE; i++) {
 		rms[i] = &_rms_mem[i];
 		rms_init(rms[i]);
 	}
 
-   	for (i = 0; i < MAX_FRAME_SIZE; i++) {
+   	for (int i = 0; i < MAX_FRAME_SIZE; i++) {
 		zeroxing[i] = &_zeroxing_mem[i];
 		zeroxing_init(zeroxing[i]);
 	}
@@ -126,7 +125,7 @@ int main(int argc, char* argv[])
 	// acquire data
     float sampling_frequency = 0.0;
 	printf("Data aquisition starts\n");
-	for (i = 0; i < NUM_FRAMES; i++) {
+	for (int i = 0; i < NUM_FRAMES; i++) {
     	timer.initTimer();
 
 		sensor.get_frame_normalized(acquisition_frame, POWER_IN_WATT);
@@ -135,34 +134,23 @@ int main(int argc, char* argv[])
 		apply_frame_filters(filtered_frames, diff_frames, sensor.get_num_samples(), i, filters);
         apply_rms_filters(rms_frames, filtered_frames, sensor.get_num_samples(), i, rms);
         compute_zeroxing(freq_frames, filtered_frames, rms_frames, sensor.get_num_samples(), i, sampling_frequency, zeroxing);
-        
-        // int max_index = find_max(rms_frames, sensor.get_num_samples(), i);
+        find_max(max_frames, rms_frames, sensor.get_num_samples(), i);
 
 		times[i] = timer.elapsedTime_ms();
         sampling_frequency = 1.0 / times[i];
 	}
 	printf("Data acquisition ends\n");
 
-
-	// Write data to file
-	printf("Output data to file DATA\n");
-	fd = fopen(DATA_FILE_NAME, "w");
-	if(fd == NULL) {
-		fprintf(stderr,"ERROR: Can not open %s for writing\n", DATA_FILE_NAME);
-		exit(EXIT_FAILURE);
-	}	
-
-	for (i = 0; i < NUM_FRAMES; i++) {
-		fprintf(fd, "%d\n", sensor.get_num_samples());
-		fprintf(fd, "%f\n", sensor.get_frame_start());
-		fprintf(fd, "%f\n", sensor.get_frame_end());
-		for (j = 0; j < sensor.get_num_samples(); j++) {
-			fprintf(fd,"%f\n",freq_frames[i][j]);
-		}	
-	}
+	write_file("RAW_FRAMES", raw_frames, &sensor);
+	write_file("DIFF_FRAMES", diff_frames, &sensor);
+	write_file("FILTERED_FRAMES", filtered_frames, &sensor);
+	write_file("RMS_FRAMES", rms_frames, &sensor);
+	write_file("MAX_FRAMES", max_frames, &sensor);
+	write_file("FREQ_FRAMES", freq_frames, &sensor);
+	printf("Files written\n");
 
 	float average = 0.0;
-	for (i = 0; i < NUM_FRAMES; i++) {
+	for (int i = 0; i < NUM_FRAMES; i++) {
 		average += times[i];
 	}
 	printf("Average acquisiton time = %f ms\n", average/NUM_FRAMES);
@@ -171,6 +159,29 @@ int main(int argc, char* argv[])
 
 	return EXIT_SUCCESS;
 }
+
+int write_file(const char* filename, float frames[NUM_FRAMES][MAX_FRAME_SIZE], slmx4* sensor)
+{
+	// Write data to file
+	FILE* fd = fopen(filename, "w");
+	if(fd == NULL) {
+		fprintf(stderr,"ERROR: Can not open %s for writing\n", filename);
+		return 1;
+	}	
+
+	for (int i = 0; i < NUM_FRAMES; i++) {
+		fprintf(fd, "%d\n", sensor->get_num_samples());
+		fprintf(fd, "%f\n", sensor->get_frame_start());
+		fprintf(fd, "%f\n", sensor->get_frame_end());
+		for (int j = 0; j < sensor->get_num_samples(); j++) {
+			fprintf(fd,"%f\n", frames[i][j]);
+		}	
+	}
+
+	fclose(fd);
+	return 0;
+}
+
 
 
 void display_slmx4_status() 
@@ -201,8 +212,6 @@ void display_slmx4_status()
 void clean_up(int sig)
 {
 	printf("\nClose sensor\n");
-	if (fd != NULL) fclose(fd);
-	fd = NULL;
 	sensor.end();
 	// unlink(DATA_FILE_NAME);
 	exit(EXIT_SUCCESS);
@@ -260,8 +269,7 @@ void apply_rms_filters(float rms_frames[NUM_FRAMES][MAX_FRAME_SIZE], float in_fr
 	}
 }
 
-
-int find_max(float in_frames[NUM_FRAMES][MAX_FRAME_SIZE], int num_samples, int frame_index)
+void find_max(float max_frames[NUM_FRAMES][MAX_FRAME_SIZE], float in_frames[NUM_FRAMES][MAX_FRAME_SIZE], int num_samples, int frame_index)
 {
     float max = in_frames[frame_index][0];
     int max_index = 0;
@@ -271,21 +279,20 @@ int find_max(float in_frames[NUM_FRAMES][MAX_FRAME_SIZE], int num_samples, int f
             max_index = i;
         }
 	}
-    return max_index;
+    max_frames[frame_index][max_index] = 1.0;
 }
 
 void compute_zeroxing(float freq_frames[NUM_FRAMES][MAX_FRAME_SIZE], float in_frames[NUM_FRAMES][MAX_FRAME_SIZE], float rms_frames[NUM_FRAMES][MAX_FRAME_SIZE], 
     int num_samples, int frame_index, float sampling_rate, zeroxing_t** zeroxing)
 {
 	for (int i = 0; i < num_samples; i++) {
-        if (frame_index && freq_frames[frame_index-1][i] > 0.0) {
-            freq_frames[frame_index][i]= freq_frames[frame_index-1][i];
+        if (frame_index >= 1 && freq_frames[frame_index-1][i] > 0.0) {
+            freq_frames[frame_index][i] = freq_frames[frame_index-1][i];
         }
         if (rms_frames[frame_index][i] > RMS_THRESHOLD) {
 		    int is_valid = zeroxing_put(zeroxing[i], in_frames[frame_index][i]);
             if (is_valid) {
                 freq_frames[frame_index][i] = zeroxing_get(zeroxing[i], sampling_rate);
-				zeroxing_reset(zeroxing[i]);
             }
         }
 	}

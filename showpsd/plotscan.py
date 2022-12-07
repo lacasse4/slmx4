@@ -1,5 +1,6 @@
 # importing the required module
 import matplotlib.pyplot as plt
+import sys
 # import numpy as np
 n = 0
 frame_start = 0
@@ -27,13 +28,11 @@ def read_data(filename):
             
         z.append(y)
 
+if len(sys.argv) != 2:
+    print("usage: plotgraph.py file")
+    quit()
 
-fr, n, frame_start, frame_end = read_data("DATA-iter64-pps128-fra33-141ms")
-print("n = " + str(n))
-print("frame_start = " + str(frame_start))
-print("frame_end = " + str(frame_end))
-print("len(fr[0]) = " + str(len(fr[0])))
-print("len(fr) = " + str(len(fr)))
+fr, n, frame_start, frame_end = read_data(sys.argv[1])
 
 figure, axes = plt.subplots(figsize=(16,8))
 figure.show()

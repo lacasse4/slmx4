@@ -33,12 +33,16 @@ if len(sys.argv) != 2:
     quit()
 
 fr, n, frame_start, frame_end = read_data(sys.argv[1])
+print(n)
+print(frame_start)
+print(frame_end)
+print(len(fr))
 
 figure, axes = plt.subplots(figsize=(16,8))
 figure.show()
 first = True
 
-for i in range(len(fr[0])):
+for i in range(n):
     y = []
     for j in range(len(fr)):
         y.append(fr[j][i])

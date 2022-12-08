@@ -39,6 +39,6 @@ float zeroxing_get(zeroxing_t* z, float sampling_rate)
 {
   int n_samples = z->n_samples;
   zeroxing_reset(z);
-  return sampling_rate / n_samples * 2;
+  return sampling_rate / n_samples;
 }
 

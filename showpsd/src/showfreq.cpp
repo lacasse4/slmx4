@@ -137,7 +137,7 @@ int main(int argc, char* argv[])
         find_max(max_frames, rms_frames, sensor.get_num_samples(), i);
 
 		times[i] = timer.elapsedTime_ms();
-        sampling_frequency = 1.0 / times[i];
+        sampling_frequency = 1000.0 / times[i];
 	}
 	printf("Data acquisition ends\n");
 
@@ -286,7 +286,7 @@ void compute_zeroxing(float freq_frames[NUM_FRAMES][MAX_FRAME_SIZE], float in_fr
     int num_samples, int frame_index, float sampling_rate, zeroxing_t** zeroxing)
 {
 	for (int i = 0; i < num_samples; i++) {
-        if (frame_index >= 1 && freq_frames[frame_index-1][i] > 0.0) {
+        if (frame_index >= 1) {
             freq_frames[frame_index][i] = freq_frames[frame_index-1][i];
         }
         if (rms_frames[frame_index][i] > RMS_THRESHOLD) {
@@ -295,5 +295,9 @@ void compute_zeroxing(float freq_frames[NUM_FRAMES][MAX_FRAME_SIZE], float in_fr
                 freq_frames[frame_index][i] = zeroxing_get(zeroxing[i], sampling_rate);
             }
         }
+		else {
+			zeroxing_init(zeroxing[i]);
+			freq_frames[frame_index][i] = 0;
+		}
 	}
 }

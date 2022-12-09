@@ -1,7 +1,7 @@
 #ifndef _RMS_H
 #define _RMS_H
 
-#define RMS_TAP_NUM 11
+#define RMS_TAP_NUM 15
 
 typedef struct {
   float history[RMS_TAP_NUM];

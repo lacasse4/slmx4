@@ -1,8 +1,6 @@
 #ifndef _ZEROXING_H
 #define _ZEROXING_H
 
-#define RMS_TAP_NUM 11
-
 typedef struct {
   int num_xing;
   int last_sign;

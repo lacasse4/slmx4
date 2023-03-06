@@ -25,6 +25,9 @@ def read_data(filename):
             
         z.append(y)
 
+period = 0.141
+distance = 9.619342
+
 if len(sys.argv) != 3:
     print("usage: imshow.py file1 file2")
     quit()
@@ -33,11 +36,16 @@ data1 = read_data(sys.argv[1])
 data2 = read_data(sys.argv[2])
 
 plt.style.use('_mpl-gallery-nogrid')
-figure, axes = plt.subplots(1, 2, figsize=(16,8))
-axes[0].imshow(data1)
-axes[0].set(title=sys.argv[1])
-axes[1].imshow(data2)
-axes[1].set(title=sys.argv[2])
+figure, axes = plt.subplots(1, 2, figsize=(16,8), layout='constrained')
+axes[0].set_title("Input "  + "(" + sys.argv[1] + ")")
+axes[0].set_xlabel("Distance (m)")
+axes[0].set_ylabel("Time (s)")
+axes[0].imshow(data1, extent=(0, distance, 200*period, 0), aspect = 'auto')
+
+axes[1].set_title("Output " + "(" + sys.argv[2] + ")")
+axes[1].set_xlabel("Distance (m)")
+axes[1].set_ylabel("Time(s)")
+axes[1].imshow(data2, extent=(0, distance, 200*period, 0), aspect = 'auto')
 
 plt.show()
 plt.close(figure)

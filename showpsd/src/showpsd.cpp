@@ -61,16 +61,14 @@ int main(int argc, char* argv[])
 		exit(EXIT_FAILURE);
 	}
 
-//    sensor.set_value_by_name("VarSetValue_ByName(iterations,64)");
-//    sensor.set_value_by_name("VarSetValue_ByName(pps,128)");
+    sensor.set_value_by_name("VarSetValue_ByName(iterations,64)");
+    sensor.set_value_by_name("VarSetValue_ByName(pps,128)");
 
 //    sensor.set_value_by_name("VarSetValue_ByName(fs,2.9)");
-
     sensor.set_value_by_name("VarSetValue_ByName(dac_min,896)");
     sensor.set_value_by_name("VarSetValue_ByName(dac_max,1152)");
-
-    sensor.set_value_by_name("VarSetValue_ByName(frame_start,2.0)");
-    sensor.set_value_by_name("VarSetValue_ByName(frame_end,4.0)");
+    // sensor.set_value_by_name("VarSetValue_ByName(frame_start,2.0)");
+    // sensor.set_value_by_name("VarSetValue_ByName(frame_end,4.0)");
     sensor.set_value_by_name("VarSetValue_ByName(ddc_en,1)");
 	display_slmx4_status();
 

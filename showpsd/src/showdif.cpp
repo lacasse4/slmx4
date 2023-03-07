@@ -166,7 +166,7 @@ void launch_viewer()
 {
 	int pid = fork();
 	if (pid == 0) {
-		execlp("python", "python", "plotdiff.py", NULL);
+		execlp("python", "python", "python/plotdiff.py", NULL);
 		fprintf(stderr, "ERROR - Unable to start viewer\n");
 		exit(EXIT_FAILURE);
 	}

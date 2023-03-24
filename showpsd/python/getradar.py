@@ -1,4 +1,4 @@
-# get a single breath out of the 188 breath sequence from an image file
+# get a single radar scan out the 200 scans of an image
 
 # importing the required module
 # import matplotlib.pyplot as plt
@@ -33,8 +33,8 @@ def write_data(filename, x):
     fd.close()
 
 if len(sys.argv) != 3:
-    print("usage: getbreath.py file <d>")
-    print("       where d is the distance (0 meter - 9 meters)");
+    print("usage: getradar.py file <n>")
+    print("       where n is the scan number (0 - 200)");
     quit()
 
 fr, num_samples, frame_start, frame_end = read_data(sys.argv[1])
@@ -44,13 +44,5 @@ print("frame_end   = " + str(frame_end))
 num_scan = len(fr)
 print("num_scan    = " + str(num_scan))
 
-distance = float(sys.argv[2])
-print("distance    = " + str(distance))
-index = round(num_samples * (distance - frame_start) / (frame_end - frame_start))
-
-x = []
-for i in range(num_scan):
-    x.append(fr[i][index])
-
-filename = "BREATH" + str(index)
-write_data(filename, x)
+filename = "RADAR" + str(sys.argv[2])
+write_data(filename, fr[int(sys.argv[2])])

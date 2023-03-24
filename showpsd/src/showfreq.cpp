@@ -1,3 +1,16 @@
+/*
+ * showfreq.cpp
+ * First attempt to find frequency out of radar scan
+ *   - Compute difference between subsequent scans
+ *   - Filter the difference in the time domain
+ *   - Find frequencies in time domain for all positions
+ *   - Find RMS value for the filtered difference in the time domain
+ *   - Find location of max RMS in the spatial domain
+ *   - The frequency outputed is the one at the max RMS location 
+ * 
+ * This algorithm is described in Statut-2023-03-05.docx
+ */
+
 #include <stdio.h> 
 #include <stdlib.h> 
 #include <string.h>
@@ -32,6 +45,10 @@ float filtered_frames[NUM_FRAMES][MAX_FRAME_SIZE];
 float rms_frames[NUM_FRAMES][MAX_FRAME_SIZE];
 float max_frames[NUM_FRAMES][MAX_FRAME_SIZE];
 float freq_frames[NUM_FRAMES][MAX_FRAME_SIZE];
+
+int   max_indices[NUM_FRAMES];
+float frequencies[NUM_FRAMES];
+int   valid_freq[NUM_FRAMES];
 unsigned long int times[NUM_FRAMES];
 
 frameFilter _filters_mem[MAX_FRAME_SIZE];
@@ -44,18 +61,13 @@ zeroxing_t _zeroxing_mem[MAX_FRAME_SIZE];
 zeroxing_t* zeroxing[MAX_FRAME_SIZE];
 
 
-void  difference(float diff_frames[NUM_FRAMES][MAX_FRAME_SIZE], float in_frames[NUM_FRAMES][MAX_FRAME_SIZE], 
-    int num_samples, int frame_index);
-void  moving_average(float filtered_frames[NUM_FRAMES][MAX_FRAME_SIZE], float in_frames[NUM_FRAMES][MAX_FRAME_SIZE], 
-    int num_samples, int frame_index, int window_size);
-void  apply_frame_filters(float filtered_frames[NUM_FRAMES][MAX_FRAME_SIZE], float in_frames[NUM_FRAMES][MAX_FRAME_SIZE], 
-    int num_samples, int frame_index, frameFilter** filters);
-void  apply_rms_filters(float rms_frames[NUM_FRAMES][MAX_FRAME_SIZE], float in_frames[NUM_FRAMES][MAX_FRAME_SIZE], 
-    int num_samples, int frame_index, rms_t** rms);
-void  find_max(float max_frames[NUM_FRAMES][MAX_FRAME_SIZE], float in_frames[NUM_FRAMES][MAX_FRAME_SIZE], 
-    int num_samples, int frame_index);
-void  compute_zeroxing(float freq_frames[NUM_FRAMES][MAX_FRAME_SIZE], float in_frames[NUM_FRAMES][MAX_FRAME_SIZE], float rms_frames[NUM_FRAMES][MAX_FRAME_SIZE], 
-    int num_samples, int frame_index, float sampling_rate, zeroxing_t** zeroxing);
+void  difference(float diff_frames[NUM_FRAMES][MAX_FRAME_SIZE], float in_frames[NUM_FRAMES][MAX_FRAME_SIZE], int num_samples);
+void  apply_frame_filters(float filtered_frames[NUM_FRAMES][MAX_FRAME_SIZE], float in_frames[NUM_FRAMES][MAX_FRAME_SIZE], int num_samples, frameFilter** filters);
+void  apply_rms_filters(float rms_frames[NUM_FRAMES][MAX_FRAME_SIZE], float in_frames[NUM_FRAMES][MAX_FRAME_SIZE], int num_samples, rms_t** rms);
+void  find_max(float max_frames[NUM_FRAMES][MAX_FRAME_SIZE], float in_frames[NUM_FRAMES][MAX_FRAME_SIZE], int num_samples, int max_indices[NUM_FRAMES]);
+void  compute_zeroxing(float freq_frames[NUM_FRAMES][MAX_FRAME_SIZE], float in_frames[NUM_FRAMES][MAX_FRAME_SIZE], float rms_frames[NUM_FRAMES][MAX_FRAME_SIZE], int num_samples, float sampling_rate, zeroxing_t** zeroxing);
+void  find_frequency(float freq_frames[NUM_FRAMES][MAX_FRAME_SIZE], int num_samples, int max_indices[NUM_FRAMES], float frequencies[NUM_FRAMES], int valid_freq[NUM_FRAMES]);
+
 
 void  display_slmx4_status();
 void  clean_up(int sig);
@@ -65,16 +77,16 @@ int   write_file(const char* filename, float frames[NUM_FRAMES][MAX_FRAME_SIZE],
 
 int main(int argc, char* argv[])
 {
-	// peak_t peak;
-
 	// unlink(DATA_FILE_NAME);
 	// if (argc == 1) {
 	// 	mkfifo(DATA_FILE_NAME, FIFO_MODE);
 	// 	launch_viewer();
 	// }
 
+	// Execute clean_up on CTRL_C
 	signal(SIGINT, clean_up);
 
+	// Initialise static memory
 	memset(acquisition_frame, 0, MAX_FRAME_SIZE*2*sizeof(float));
 	memset(raw_frames,        0, NUM_FRAMES*MAX_FRAME_SIZE*sizeof(float));
 	memset(diff_frames,       0, NUM_FRAMES*MAX_FRAME_SIZE*sizeof(float));
@@ -82,7 +94,11 @@ int main(int argc, char* argv[])
 	memset(rms_frames,        0, NUM_FRAMES*MAX_FRAME_SIZE*sizeof(float));
 	memset(max_frames,        0, NUM_FRAMES*MAX_FRAME_SIZE*sizeof(float));
 	memset(freq_frames,       0, NUM_FRAMES*MAX_FRAME_SIZE*sizeof(float));
+	memset(max_indices,       0, NUM_FRAMES*sizeof(int));
+	memset(frequencies,       0, NUM_FRAMES*sizeof(float));
+	memset(valid_freq,        0, NUM_FRAMES*sizeof(int));
 
+	// Use static memory for the various filter. Initialise filter buffers
 	for (int i = 0; i < MAX_FRAME_SIZE; i++) {
 		filters[i] = &_filters_mem[i];
 		frameFilter_init(filters[i]);
@@ -98,22 +114,44 @@ int main(int argc, char* argv[])
 		zeroxing_init(zeroxing[i]);
 	}
 
-
-	printf("Open serial port: %s\n", SERIAL_PORT);
+	// Check if the SLMX4 sensor is connected and available
+	printf("Checking serial port: %s\n", SERIAL_PORT);
 	if (access(SERIAL_PORT, F_OK) < 0) {
 		fprintf(stderr, "ERROR: serial port NOT available: %s\n", SERIAL_PORT);		
 		exit(EXIT_FAILURE);
 	}
 
+	// Initialise sensor
 	printf("Initialize SLMX4 sensor\n");
 	if (sensor.begin(SERIAL_PORT) == EXIT_FAILURE) {
 		exit(EXIT_FAILURE);
 	}
 
+	// Set sensor operating mode, that is:
+	//   - 64 iterations
+	//   - 128 pulses per step (pps)
+	//   - dac minimum value 896   (1024 - 128)
+	//   - dac maximum value 1152  (1024 + 128)
+	//   - downconversion and decimation enabled (ddc = 1)
+	// The 4 first values were experimentaly set.
+	// The iteration and pps values yield a smooth signal (less noise)
+	// but increase the data acquisition time between frames.
+	// By increasing dac_min and reducing dac_max, the data acquisition
+	// time is reduced. This application does not require a larger range.
+	// With this setup, the acquition rate is about 1 frame each 141.7 ms,
+	// or 7.05 frames per second.
+	//
+	// Setting ddc to 1 enable the downconverion and decimation algorithm 
+	// available on the SLMX4 sensor. It demodulates the radar signal 
+	// from its carrier frequency. See:
+	// https://sensorlogicinc.github.io/modules/docs/XTAN-13_XeThruX4RadarUserGuide_rev_a.pdf section 5.
+	// The result is 188 points in complex numbers (float*2). 
+	// Each complex data points is rapidely converted to there modulus 
+	// in get_frame_normalized().   
+
     sensor.set_value_by_name("VarSetValue_ByName(iterations,64)");
     sensor.set_value_by_name("VarSetValue_ByName(pps,128)");
-
-//    sensor.set_value_by_name("VarSetValue_ByName(fs,2.9)");
+    // sensor.set_value_by_name("VarSetValue_ByName(fs,2.9)");
     sensor.set_value_by_name("VarSetValue_ByName(dac_min,896)");
     sensor.set_value_by_name("VarSetValue_ByName(dac_max,1152)");
     // sensor.set_value_by_name("VarSetValue_ByName(frame_start,2.0)");
@@ -121,33 +159,40 @@ int main(int argc, char* argv[])
     sensor.set_value_by_name("VarSetValue_ByName(ddc_en,1)");
 	display_slmx4_status();
 
-
-	// acquire data
-    float sampling_frequency = 0.0;
+	// Acquire data
 	printf("Data aquisition starts\n");
+    float sampling_frequency = 0.0;
 	for (int i = 0; i < NUM_FRAMES; i++) {
     	timer.initTimer();
 
 		sensor.get_frame_normalized(acquisition_frame, POWER_IN_WATT);
 		memcpy(raw_frames[i], acquisition_frame, sensor.get_num_samples()*sizeof(float));
-		if (i >= 1) difference(diff_frames, raw_frames, sensor.get_num_samples(), i);
-		apply_frame_filters(filtered_frames, diff_frames, sensor.get_num_samples(), i, filters);
-        apply_rms_filters(rms_frames, filtered_frames, sensor.get_num_samples(), i, rms);
-        compute_zeroxing(freq_frames, filtered_frames, rms_frames, sensor.get_num_samples(), i, sampling_frequency, zeroxing);
-        find_max(max_frames, rms_frames, sensor.get_num_samples(), i);
 
 		times[i] = timer.elapsedTime_ms();
         sampling_frequency = 1000.0 / times[i];
 	}
-	printf("Data acquisition ends\n");
 
+	// Process data
+	printf("Data processing starts\n");
+	difference(diff_frames, raw_frames, sensor.get_num_samples());
+	apply_frame_filters(filtered_frames, diff_frames, sensor.get_num_samples(), filters);
+    apply_rms_filters(rms_frames, filtered_frames, sensor.get_num_samples(), rms); 
+    compute_zeroxing(freq_frames, filtered_frames, rms_frames, sensor.get_num_samples(), sampling_frequency, zeroxing);
+    find_max(max_frames, rms_frames, sensor.get_num_samples(), max_indices);
+    find_frequency(freq_frames, sensor.get_num_samples(), max_indices, frequencies, valid_freq);
+
+	for (int i; i < NUM_FRAMES; i++) {
+		printf("%4d, %4.1f rpm\n", valid_freq[i], frequencies[i]*60.0);
+	}
+
+	// Write results to disk
+	printf("Write files to disk\n");
 	write_file("RAW_FRAMES", raw_frames, &sensor);
 	write_file("DIFF_FRAMES", diff_frames, &sensor);
 	write_file("FILTERED_FRAMES", filtered_frames, &sensor);
 	write_file("RMS_FRAMES", rms_frames, &sensor);
 	write_file("MAX_FRAMES", max_frames, &sensor);
 	write_file("FREQ_FRAMES", freq_frames, &sensor);
-	printf("Files written\n");
 
 	float average = 0.0;
 	for (int i = 0; i < NUM_FRAMES; i++) {
@@ -160,6 +205,7 @@ int main(int argc, char* argv[])
 	return EXIT_SUCCESS;
 }
 
+// Write of text file containing NUM_FRAMES frames
 int write_file(const char* filename, float frames[NUM_FRAMES][MAX_FRAME_SIZE], slmx4* sensor)
 {
 	// Write data to file
@@ -182,8 +228,7 @@ int write_file(const char* filename, float frames[NUM_FRAMES][MAX_FRAME_SIZE], s
 	return 0;
 }
 
-
-
+// Ouput slmx4 status to console
 void display_slmx4_status() 
 {
 	printf("dac_min           = %d\n", sensor.get_dac_min());
@@ -209,6 +254,7 @@ void display_slmx4_status()
 	printf("fs_rf             = %e\n", sensor.get_fs_rf());
 }
 
+// Must be executed before exit in order to leave the sensor in a stable mode
 void clean_up(int sig)
 {
 	printf("\nClose sensor\n");
@@ -217,6 +263,8 @@ void clean_up(int sig)
 	exit(EXIT_SUCCESS);
 }
 
+// Lauch a viewer in a separate process
+// Inter process communication is done by FIFO.
 void launch_viewer()
 {
 	int pid = fork();
@@ -227,77 +275,98 @@ void launch_viewer()
 	}
 }
 
-
-void  difference(float diff_frames[NUM_FRAMES][MAX_FRAME_SIZE], float in_frames[NUM_FRAMES][MAX_FRAME_SIZE], int num_samples, int frame_index)
+// Compute the difference between 2 frames
+void  difference(float diff_frames[NUM_FRAMES][MAX_FRAME_SIZE], float in_frames[NUM_FRAMES][MAX_FRAME_SIZE], int num_samples)
 {
-	int i;
-
-	for (i = 0; i < num_samples; i++) {
-		diff_frames[frame_index][i] = in_frames[frame_index][i] - in_frames[frame_index-1][i];
-	}
-}
-
-
-void moving_average(float filtered_frames[NUM_FRAMES][MAX_FRAME_SIZE], float in_frames[NUM_FRAMES][MAX_FRAME_SIZE], int num_samples, int frame_index, int window_size)
-{
-	int i, j;
-	float sum;
-
-	for (i = 0; i < num_samples; i++) {
-		sum = 0.0;
-		for (j = 0; j < window_size; j++) {
-			sum += in_frames[frame_index-j][i];
+	for (int i = 1; i < NUM_FRAMES; i++) {
+		for (int j = 0; j < num_samples; j++) {
+			diff_frames[i][j] = in_frames[i][j] - in_frames[i-1][j];
 		}
-		filtered_frames[frame_index][i] = sum / window_size;
 	}
 }
 
-void apply_frame_filters(float filtered_frames[NUM_FRAMES][MAX_FRAME_SIZE], float in_frames[NUM_FRAMES][MAX_FRAME_SIZE], int num_samples, int frame_index, frameFilter** filters)
+// Apply a filter in the time direction
+void apply_frame_filters(float filtered_frames[NUM_FRAMES][MAX_FRAME_SIZE], float in_frames[NUM_FRAMES][MAX_FRAME_SIZE], int num_samples, frameFilter** filters)
 {
-	for (int i = 0; i < num_samples; i++) {
-		frameFilter_put(filters[i], in_frames[frame_index][i]);
-		filtered_frames[frame_index][i] = frameFilter_get(filters[i]);
+	for (int i = 0; i < NUM_FRAMES; i++) {
+		for (int j = 0; j < num_samples; j++) {
+			frameFilter_put(filters[j], in_frames[i][j]);
+			filtered_frames[i][j] = frameFilter_get(filters[j]);
+		}
 	}
 }
 
-
-void apply_rms_filters(float rms_frames[NUM_FRAMES][MAX_FRAME_SIZE], float in_frames[NUM_FRAMES][MAX_FRAME_SIZE], int num_samples, int frame_index, rms_t** filters)
+// Compute the signal RMS value in the time direction 
+void apply_rms_filters(float rms_frames[NUM_FRAMES][MAX_FRAME_SIZE], float in_frames[NUM_FRAMES][MAX_FRAME_SIZE], int num_samples, rms_t** filters)
 {
-	for (int i = 0; i < num_samples; i++) {
-		rms_put(rms[i], in_frames[frame_index][i]);
-		rms_frames[frame_index][i] = rms_get(rms[i]);
+	for (int i = 0; i < NUM_FRAMES; i++) {
+		for (int j = 0; j < num_samples; j++) {
+			rms_put(rms[j], in_frames[i][j]);
+			rms_frames[i][j] = rms_get(rms[j]);
+		}
 	}
 }
 
-void find_max(float max_frames[NUM_FRAMES][MAX_FRAME_SIZE], float in_frames[NUM_FRAMES][MAX_FRAME_SIZE], int num_samples, int frame_index)
+// TBD
+// 2-D RMS 15x5
+// void apply_2d_rms(float rms_2d_frames[NUM_FRAMES][MAX_FRAME_SIZE], float in_frames[NUM_FRAMES][MAX_FRAME_SIZE], int num_samples, int frame_index, rms_t** filters)
+// {
+// 	static float temp_frames[NUM_FRAMES][MAX_FRAME_SIZE];
+// 	for (int i = 0; i < num_samples; i++) {
+// 		rms_put(rms[i], in_frames[frame_index][i]);
+// 		rms_frames[frame_index][i] = rms_get(rms[i]);
+// 	}
+// }
+
+// Find the max value in the spatial direction
+void find_max(float max_frames[NUM_FRAMES][MAX_FRAME_SIZE], float in_frames[NUM_FRAMES][MAX_FRAME_SIZE], int num_samples, int max_indices[NUM_FRAMES])
 {
-    float max = in_frames[frame_index][0];
-    int max_index = 0;
-	for (int i = 1; i < num_samples; i++) {
-        if (max < in_frames[frame_index][i]) {
-            max = in_frames[frame_index][i];
-            max_index = i;
-        }
+	for (int i = 0; i < NUM_FRAMES; i++) {
+		float max = in_frames[i][0];
+		max_indices[i] = 0;
+		for (int j = 1; j < num_samples; j++) {
+			if (max < in_frames[i][j]) {
+				max = in_frames[i][j];
+				max_indices[i] = j;
+			}
+		}
+		max_frames[i][max_indices[i]] = 1.0;
 	}
-    max_frames[frame_index][max_index] = 1.0;
 }
 
+// Find frequencies in the time direction
 void compute_zeroxing(float freq_frames[NUM_FRAMES][MAX_FRAME_SIZE], float in_frames[NUM_FRAMES][MAX_FRAME_SIZE], float rms_frames[NUM_FRAMES][MAX_FRAME_SIZE], 
-    int num_samples, int frame_index, float sampling_rate, zeroxing_t** zeroxing)
+    int num_samples, float sampling_rate, zeroxing_t** zeroxing)
 {
-	for (int i = 0; i < num_samples; i++) {
-        if (frame_index >= 1) {
-            freq_frames[frame_index][i] = freq_frames[frame_index-1][i];
-        }
-        if (rms_frames[frame_index][i] > RMS_THRESHOLD) {
-		    int is_valid = zeroxing_put(zeroxing[i], in_frames[frame_index][i]);
-            if (is_valid) {
-                freq_frames[frame_index][i] = zeroxing_get(zeroxing[i], sampling_rate);
-            }
-        }
-		else {
-			zeroxing_init(zeroxing[i]);
-			freq_frames[frame_index][i] = 0;
+	for (int i = 0; i < NUM_FRAMES; i++) {
+		for (int j = 0; j < num_samples; j++) {
+			if (i >= 1) {
+				freq_frames[i][j] = freq_frames[i-1][j]; // keep last frequency found
+			}
+			if (rms_frames[i][j] > RMS_THRESHOLD) {
+				int is_valid = zeroxing_put(zeroxing[j], in_frames[i][j]);
+				if (is_valid) {
+					freq_frames[i][j] = zeroxing_get(zeroxing[j], sampling_rate);
+				}
+			}
+			else {
+				zeroxing_init(zeroxing[j]);
+				freq_frames[i][j] = 0;
+			}
 		}
+	}
+}
+
+// Get frequency at max RMS
+void find_frequency(float freq_frames[NUM_FRAMES][MAX_FRAME_SIZE], int num_samples, int max_indices[NUM_FRAMES], 
+	float frequencies[NUM_FRAMES], int valid_freq[NUM_FRAMES])
+{
+	for (int i = 0; i < NUM_FRAMES; i++) {
+		valid_freq[i] = 0;
+		frequencies[i] = 0.0;
+
+		if (max_indices[i] == 0) continue;
+		frequencies[i] = freq_frames[i][max_indices[i]];
+		valid_freq[i] = 1;
 	}
 }

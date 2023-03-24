@@ -37,8 +37,7 @@ static float filter_taps[FRAMEFILTER_TAP_NUM] = {
 };
 
 void frameFilter_init(frameFilter* f) {
-  int i;
-  for(i = 0; i < FRAMEFILTER_TAP_NUM; ++i)
+  for(int i = 0; i < FRAMEFILTER_TAP_NUM; ++i)
     f->history[i] = 0;
   f->last_index = 0;
 }
@@ -51,8 +50,8 @@ void frameFilter_put(frameFilter* f, float input) {
 
 float frameFilter_get(frameFilter* f) {
   float acc = 0;
-  int index = f->last_index, i;
-  for(i = 0; i < FRAMEFILTER_TAP_NUM; ++i) {
+  int index = f->last_index;
+  for(int i = 0; i < FRAMEFILTER_TAP_NUM; ++i) {
     index = index != 0 ? index-1 : FRAMEFILTER_TAP_NUM-1;
     acc += f->history[index] * filter_taps[i];
   };

@@ -1,6 +1,7 @@
 $(shell mkdir -p bin)
 
-all: bin/showpsd bin/showdif bin/benchmark bin/showfilter bin/showrms bin/showfreq bin/testzeroxing
+all: bin/showpsd bin/showdif bin/benchmark bin/showfilter bin/showrms bin/showfreq bin/testzeroxing \
+     bin/showfreq2 bin/showfreq3 bin/showfreq3_dbg
 
 bin/showpsd: src/showpsd.cpp src/slmx4_vcom.cpp src/serialib.cpp inc/slmx4_vcom.h inc/serialib.h
 	g++ -g -Wall -o bin/showpsd -I inc src/showpsd.cpp src/slmx4_vcom.cpp src/serialib.cpp
@@ -26,6 +27,17 @@ bin/showfreq: src/showfreq.cpp src/slmx4_vcom.cpp src/serialib.cpp src/rms.c src
 
 bin/testzeroxing: src/testzeroxing.cpp src/zeroxing.c inc/zeroxing.h
 	g++ -g -Wall -o bin/testzeroxing -I inc src/testzeroxing.cpp src/zeroxing.c
+
+bin/showfreq2: src/showfreq2.cpp src/slmx4_vcom.cpp src/serialib.cpp src/rms.c src/frameFilter.c src/zeroxing.c \
+			 inc/slmx4_vcom.h inc/serialib.h inc/rms.h inc/frameFilter.h inc/zeroxing.h
+	g++ -g -Wall -o bin/showfreq2 -I inc src/showfreq2.cpp src/slmx4_vcom.cpp src/serialib.cpp src/rms.c src/frameFilter.c src/zeroxing.c
+
+bin/showfreq3: src/showfreq3.cpp src/slmx4_vcom.cpp src/serialib.cpp src/frameFilter.c src/zeroxing.c \
+			 inc/slmx4_vcom.h inc/serialib.h inc/frameFilter.h inc/zeroxing.h
+	g++ -g -Wall -o bin/showfreq3 -I inc src/showfreq3.cpp src/slmx4_vcom.cpp src/serialib.cpp src/frameFilter.c src/zeroxing.c
+
+bin/showfreq3_dbg: src/showfreq3_dbg.cpp
+	g++ -g -Wall -o bin/showfreq3_dbg -I inc src/showfreq3_dbg.cpp
 
 clean:
 	rm -rf bin

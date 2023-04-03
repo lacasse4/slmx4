@@ -1,7 +1,7 @@
 $(shell mkdir -p bin)
 
 all: bin/showpsd bin/showdif bin/benchmark bin/showfilter bin/showrms bin/showfreq bin/testzeroxing \
-     bin/showfreq2 bin/showfreq3 bin/showfreq3_dbg
+     bin/showfreq2 bin/showfreq3 bin/showfreq3_dbg bin/showfreq4
 
 bin/showpsd: src/showpsd.cpp src/slmx4_vcom.cpp src/serialib.cpp inc/slmx4_vcom.h inc/serialib.h
 	g++ -g -Wall -o bin/showpsd -I inc src/showpsd.cpp src/slmx4_vcom.cpp src/serialib.cpp
@@ -38,6 +38,10 @@ bin/showfreq3: src/showfreq3.cpp src/slmx4_vcom.cpp src/serialib.cpp src/frameFi
 
 bin/showfreq3_dbg: src/showfreq3_dbg.cpp
 	g++ -g -Wall -o bin/showfreq3_dbg -I inc src/showfreq3_dbg.cpp
+
+bin/showfreq4: src/showfreq4.cpp src/slmx4_vcom.cpp src/serialib.cpp src/frameFilter.c src/spatialFilter.c src/zeroxing.c \
+			 inc/slmx4_vcom.h inc/serialib.h inc/frameFilter.h inc/spatialFilter.h inc/zeroxing.h
+	g++ -g -Wall -o bin/showfreq4 -I inc src/showfreq4.cpp src/slmx4_vcom.cpp src/serialib.cpp src/frameFilter.c src/spatialFilter.c src/zeroxing.c
 
 clean:
 	rm -rf bin

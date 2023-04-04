@@ -39,9 +39,9 @@ bin/showfreq3: src/showfreq3.cpp src/slmx4_vcom.cpp src/serialib.cpp src/frameFi
 bin/showfreq3_dbg: src/showfreq3_dbg.cpp
 	g++ -g -Wall -o bin/showfreq3_dbg -I inc src/showfreq3_dbg.cpp
 
-bin/showfreq4: src/showfreq4.cpp src/slmx4_vcom.cpp src/serialib.cpp src/frameFilter.c src/spatialFilter.c src/zeroxing.c \
-			 inc/slmx4_vcom.h inc/serialib.h inc/frameFilter.h inc/spatialFilter.h inc/zeroxing.h
-	g++ -g -Wall -o bin/showfreq4 -I inc src/showfreq4.cpp src/slmx4_vcom.cpp src/serialib.cpp src/frameFilter.c src/spatialFilter.c src/zeroxing.c
+bin/showfreq4: src/showfreq4.cpp src/slmx4_vcom.cpp src/serialib.cpp src/frameFilter.c src/spatialFilter.c src/breathFilter.c src/zeroxing.c \
+			 inc/slmx4_vcom.h inc/serialib.h inc/frameFilter.h inc/spatialFilter.h inc/breathFilter.h inc/zeroxing.h
+	g++ -g -Wall -o bin/showfreq4 -I inc src/showfreq4.cpp src/slmx4_vcom.cpp src/serialib.cpp src/frameFilter.c src/spatialFilter.c src/breathFilter.c src/zeroxing.c
 
 clean:
 	rm -rf bin

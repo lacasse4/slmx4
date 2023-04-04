@@ -5,6 +5,7 @@
  *   - Filter the difference in the time domain (low pass)
  *   - Filter in the spatial domain (low pass)
  *   - Extract the the breath signal by following the max of the filtered difference 
+ *   - Filter the breath signal (small low pass)
  */
 
 #include <stdio.h> 
@@ -20,6 +21,7 @@
 #include "serialib.h"
 #include "frameFilter.h"
 #include "spatialFilter.h"
+#include "breathFilter.h"
 // #include "rms.h"
 #include "zeroxing.h"
 
@@ -27,7 +29,7 @@
 #define NUM_FRAMES 200
 #define WINDOW_SIZE 5
 #define XING_THRESHOLD 0.005
-#define MAX_THRESHOLD 0.01
+#define MAX_THRESHOLD 0.005
 
 #define FIFO_MODE 0666
 #define DATA_FILE_NAME "./DATA"
@@ -43,18 +45,21 @@ float filtered_td_frames[NUM_FRAMES][MAX_FRAME_SIZE];
 float filtered_sd_frames[NUM_FRAMES][MAX_FRAME_SIZE];
 // float rms_frames[NUM_FRAMES][MAX_FRAME_SIZE];
 // float max_frames[NUM_FRAMES][MAX_FRAME_SIZE];
-float freq_frames[NUM_FRAMES][MAX_FRAME_SIZE];
+// float freq_frames[NUM_FRAMES][MAX_FRAME_SIZE];
 
 int   max_indices[NUM_FRAMES];
 // float frequencies[NUM_FRAMES];
 int   valid[NUM_FRAMES];
-float breath_signal[NUM_FRAMES];
+float raw_breath_signal[NUM_FRAMES];
+float filtered_breath_signal[NUM_FRAMES];
 unsigned long int times[NUM_FRAMES];
 
 frameFilter   _filters_td_mem[MAX_FRAME_SIZE];
 frameFilter*   filters_td[MAX_FRAME_SIZE];
 spatialFilter _filter_sd_mem;
 spatialFilter* filter_sd;
+breathFilter  _filter_br_mem;
+breathFilter*  filter_br;
 
 // rms_t _rms_mem[MAX_FRAME_SIZE];
 // rms_t* rms[MAX_FRAME_SIZE];
@@ -71,6 +76,7 @@ void  compute_zeroxing(float freq_frames[NUM_FRAMES][MAX_FRAME_SIZE], float in_f
 // void  find_frequency(float freq_frames[NUM_FRAMES][MAX_FRAME_SIZE], int num_samples, int max_indices[NUM_FRAMES], float frequencies[NUM_FRAMES], int valid_freq[NUM_FRAMES]);
 void  extract_breath_signal(float filtered_frames[NUM_FRAMES][MAX_FRAME_SIZE], int num_samples, int max_indices[NUM_FRAMES], float breath_signal[NUM_FRAMES], int valid[NUM_FRAMES]);
 void  apply_spatial_filter(float filtered_frames[NUM_FRAMES][MAX_FRAME_SIZE], float in_frames[NUM_FRAMES][MAX_FRAME_SIZE], int num_samples, spatialFilter* filter);
+void  apply_breath_filter(float out_signal[NUM_FRAMES], float in_signal[NUM_FRAMES], breathFilter* filter);
 
 void  display_slmx4_status();
 void  clean_up(int sig);
@@ -92,18 +98,19 @@ int main(int argc, char* argv[])
 	signal(SIGINT, clean_up);
 
 	// Initialise static memory
-	memset(acquisition_frame,  0, MAX_FRAME_SIZE*2*sizeof(float));
-	memset(raw_frames,         0, NUM_FRAMES*MAX_FRAME_SIZE*sizeof(float));
-	memset(diff_frames,        0, NUM_FRAMES*MAX_FRAME_SIZE*sizeof(float));
-	memset(filtered_td_frames, 0, NUM_FRAMES*MAX_FRAME_SIZE*sizeof(float));
-	memset(filtered_sd_frames, 0, NUM_FRAMES*MAX_FRAME_SIZE*sizeof(float));
-	// memset(rms_frames,         0, NUM_FRAMES*MAX_FRAME_SIZE*sizeof(float));
-	// memset(max_frames,         0, NUM_FRAMES*MAX_FRAME_SIZE*sizeof(float));
-	// memset(freq_frames,        0, NUM_FRAMES*MAX_FRAME_SIZE*sizeof(float));
-	memset(max_indices,        0, NUM_FRAMES*sizeof(int));
-	// memset(frequencies,        0, NUM_FRAMES*sizeof(float));
-	memset(valid,              0, NUM_FRAMES*sizeof(int));
-	memset(breath_signal,      0, NUM_FRAMES*sizeof(float));
+	memset(acquisition_frame,      0, MAX_FRAME_SIZE*2*sizeof(float));
+	memset(raw_frames,             0, NUM_FRAMES*MAX_FRAME_SIZE*sizeof(float));
+	memset(diff_frames,            0, NUM_FRAMES*MAX_FRAME_SIZE*sizeof(float));
+	memset(filtered_td_frames,     0, NUM_FRAMES*MAX_FRAME_SIZE*sizeof(float));
+	memset(filtered_sd_frames,     0, NUM_FRAMES*MAX_FRAME_SIZE*sizeof(float));
+	// memset(rms_frames,             0, NUM_FRAMES*MAX_FRAME_SIZE*sizeof(float));
+	// memset(max_frames,             0, NUM_FRAMES*MAX_FRAME_SIZE*sizeof(float));
+	// memset(freq_frames,            0, NUM_FRAMES*MAX_FRAME_SIZE*sizeof(float));
+	memset(max_indices,            0, NUM_FRAMES*sizeof(int));
+	// memset(frequencies,            0, NUM_FRAMES*sizeof(float));
+	memset(valid,                  0, NUM_FRAMES*sizeof(int));
+	memset(raw_breath_signal,      0, NUM_FRAMES*sizeof(float));
+	memset(filtered_breath_signal, 0, NUM_FRAMES*sizeof(float));
 
 
 	// Use static memory for the various filter. Initialise filter buffers
@@ -114,6 +121,9 @@ int main(int argc, char* argv[])
 
     filter_sd = &_filter_sd_mem;
     spatialFilter_init(filter_sd);
+
+    filter_br = &_filter_br_mem;
+    breathFilter_init(filter_br);
 
 
 	// for (int i = 0; i < MAX_FRAME_SIZE; i++) {
@@ -189,7 +199,8 @@ int main(int argc, char* argv[])
 	difference(diff_frames, raw_frames, sensor.get_num_samples());
     apply_spatial_filter(filtered_sd_frames, diff_frames, sensor.get_num_samples(), filter_sd);
 	apply_frame_filters(filtered_td_frames, filtered_sd_frames, sensor.get_num_samples(), filters_td);
-    extract_breath_signal(filtered_td_frames, sensor.get_num_samples(), max_indices, breath_signal, valid);
+    extract_breath_signal(filtered_td_frames, sensor.get_num_samples(), max_indices, raw_breath_signal, valid);
+    apply_breath_filter(filtered_breath_signal, raw_breath_signal, filter_br);
     // apply_rms_filters(rms_frames, filtered_frames, sensor.get_num_samples(), rms); 
     // compute_zeroxing(freq_frames, filtered_frames, rms_frames, sensor.get_num_samples(), sampling_frequency, zeroxing);
     // find_frequency(freq_frames, sensor.get_num_samples(), max_indices, frequencies, valid_freq);
@@ -208,8 +219,9 @@ int main(int argc, char* argv[])
 	// write_img_file("RMS_FRAMES", rms_frames, &sensor);
 	// write_img_file("MAX_FRAMES", max_frames, &sensor);
 	// write_img_file("FREQ_FRAMES", freq_frames, &sensor);
-    write_sig_file("BREATH_SIGNAL",     valid, max_indices, breath_signal, 0);
-    write_sig_file("BREATH_SIGNAL_ALL", valid, max_indices, breath_signal, 1);
+    write_sig_file("BREATH_SIGNAL_RAW", valid, max_indices, raw_breath_signal, 0);
+    write_sig_file("BREATH_SIGNAL_FIL", valid, max_indices, filtered_breath_signal, 0);
+    write_sig_file("BREATH_SIGNAL_ALL", valid, max_indices, raw_breath_signal, 1);
 
 	float average = 0.0;
 	for (int i = 0; i < NUM_FRAMES; i++) {
@@ -377,6 +389,18 @@ void  apply_spatial_filter(float filtered_frames[NUM_FRAMES][MAX_FRAME_SIZE], fl
 	}
 }
 
+// Apply a filter to the breath signal
+void apply_breath_filter(float out_signal[NUM_FRAMES], float in_signal[NUM_FRAMES], breathFilter* filter)
+{
+    breathFilter_init(filter);
+	for (int i = 0; i < NUM_FRAMES; i++) {
+		breathFilter_put(filter, in_signal[i]);
+        if (i >= BREATHFILTER_TAP_NUM/2)
+			out_signal[i-BREATHFILTER_TAP_NUM/2] = breathFilter_get(filter);
+	}
+}
+
+
 // Compute the signal RMS value in the time direction 
 // void apply_rms_filters(float rms_frames[NUM_FRAMES][MAX_FRAME_SIZE], float in_frames[NUM_FRAMES][MAX_FRAME_SIZE], int num_samples, rms_t** filters)
 // {
@@ -400,20 +424,20 @@ void  apply_spatial_filter(float filtered_frames[NUM_FRAMES][MAX_FRAME_SIZE], fl
 // }
 
 // Find the max value in the spatial direction
-void find_max(float max_frames[NUM_FRAMES][MAX_FRAME_SIZE], float in_frames[NUM_FRAMES][MAX_FRAME_SIZE], int num_samples, int max_indices[NUM_FRAMES])
-{
-	for (int i = 0; i < NUM_FRAMES; i++) {
-		float max = in_frames[i][0];
-		max_indices[i] = 0;
-		for (int j = 1; j < num_samples; j++) {
-			if (max < in_frames[i][j]) {
-				max = in_frames[i][j];
-				max_indices[i] = j;
-			}
-		}
-		max_frames[i][max_indices[i]] = 1.0;
-	}
-}
+// void find_max(float max_frames[NUM_FRAMES][MAX_FRAME_SIZE], float in_frames[NUM_FRAMES][MAX_FRAME_SIZE], int num_samples, int max_indices[NUM_FRAMES])
+// {
+// 	for (int i = 0; i < NUM_FRAMES; i++) {
+// 		float max = in_frames[i][0];
+// 		max_indices[i] = 0;
+// 		for (int j = 1; j < num_samples; j++) {
+// 			if (max < in_frames[i][j]) {
+// 				max = in_frames[i][j];
+// 				max_indices[i] = j;
+// 			}
+// 		}
+// 		max_frames[i][max_indices[i]] = 1.0;
+// 	}
+// }
 
 // Find frequencies in the time direction
 void compute_zeroxing(float freq_frames[NUM_FRAMES][MAX_FRAME_SIZE], float in_frames[NUM_FRAMES][MAX_FRAME_SIZE], float rms_frames[NUM_FRAMES][MAX_FRAME_SIZE], 
@@ -439,18 +463,18 @@ void compute_zeroxing(float freq_frames[NUM_FRAMES][MAX_FRAME_SIZE], float in_fr
 }
 
 // Get frequency at max RMS
-void find_frequency(float freq_frames[NUM_FRAMES][MAX_FRAME_SIZE], int num_samples, int max_indices[NUM_FRAMES], 
-	float frequencies[NUM_FRAMES], int valid_freq[NUM_FRAMES])
-{
-	for (int i = 0; i < NUM_FRAMES; i++) {
-		valid_freq[i] = 0;
-		frequencies[i] = 0.0;
+// void find_frequency(float freq_frames[NUM_FRAMES][MAX_FRAME_SIZE], int num_samples, int max_indices[NUM_FRAMES], 
+// 	float frequencies[NUM_FRAMES], int valid_freq[NUM_FRAMES])
+// {
+// 	for (int i = 0; i < NUM_FRAMES; i++) {
+// 		valid_freq[i] = 0;
+// 		frequencies[i] = 0.0;
 
-		if (max_indices[i] == 0) continue;
-		frequencies[i] = freq_frames[i][max_indices[i]];
-		valid_freq[i] = 1;
-	}
-}
+// 		if (max_indices[i] == 0) continue;
+// 		frequencies[i] = freq_frames[i][max_indices[i]];
+// 		valid_freq[i] = 1;
+// 	}
+// }
 
 #define INVALID 0
 #define VALID 1

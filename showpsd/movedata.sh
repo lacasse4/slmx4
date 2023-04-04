@@ -17,7 +17,8 @@ fi
 mkdir -p $1
 mv RAW_FRAMES $1/ 
 mv DIFF_FRAMES $1/
-mv FILTERED_FRAMES $1/
+mv FILTERED_SD_FRAMES $1/
+mv FILTERED_TD_FRAMES $1/
 mv BREATH_SIGNAL $1/
 mv BREATH_SIGNAL_ALL $1/
 echo "move successful"

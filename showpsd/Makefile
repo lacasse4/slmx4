@@ -1,7 +1,7 @@
 $(shell mkdir -p bin)
 
 all: bin/showpsd bin/showdif bin/benchmark bin/showfilter bin/showrms bin/showfreq bin/testzeroxing \
-     bin/showfreq2 bin/showfreq3 bin/showfreq3_dbg bin/showfreq4
+     bin/showfreq2 bin/showfreq3 bin/showfreq3_dbg bin/showfreq4 bin/breath1
 
 bin/showpsd: src/showpsd.cpp src/slmx4_vcom.cpp src/serialib.cpp inc/slmx4_vcom.h inc/serialib.h
 	g++ -g -Wall -o bin/showpsd -I inc src/showpsd.cpp src/slmx4_vcom.cpp src/serialib.cpp
@@ -42,6 +42,11 @@ bin/showfreq3_dbg: src/showfreq3_dbg.cpp
 bin/showfreq4: src/showfreq4.cpp src/slmx4_vcom.cpp src/serialib.cpp src/frameFilter.c src/spatialFilter.c src/breathFilter.c src/zeroxing.c \
 			 inc/slmx4_vcom.h inc/serialib.h inc/frameFilter.h inc/spatialFilter.h inc/breathFilter.h inc/zeroxing.h
 	g++ -g -Wall -o bin/showfreq4 -I inc src/showfreq4.cpp src/slmx4_vcom.cpp src/serialib.cpp src/frameFilter.c src/spatialFilter.c src/breathFilter.c src/zeroxing.c
+
+bin/breath1: src/breath1.cpp src/slmx4_vcom.cpp src/serialib.cpp src/frameFilter.c src/spatialFilter.c src/breathFilter.c src/zeroxing.c \
+			 inc/slmx4_vcom.h inc/serialib.h inc/frameFilter.h inc/spatialFilter.h inc/breathFilter.h inc/zeroxing.h
+	g++ -g -Wall -o bin/breath1 -I inc src/breath1.cpp src/slmx4_vcom.cpp src/serialib.cpp src/frameFilter.c src/spatialFilter.c src/breathFilter.c src/zeroxing.c
+
 
 clean:
 	rm -rf bin

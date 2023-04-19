@@ -22,12 +22,13 @@
 #define MAX_FRAME_SIZE 188
 
 // constants associated with extract_breath_signal()
-#define MAX_THRESHOLD 0.001
+#define MIN_VALID_SIGNAL 0.002
+#define MAX_VALID_SLOPE 0.05
 #define INVALID 0
 #define VALID 1
 #define LOST 2
 #define LOST_COUNTER_MAX 8
-#define CENTER_GAP 3
+#define POSITION_GAP 5
 
 #define FIFO_MODE 0666
 #define DATA_FILE_NAME "./DATA"
@@ -76,8 +77,8 @@ char* display_signal(char out[MAX_FRAME_SIZE], float in[MAX_FRAME_SIZE]);
 void  clean_up(int sig);
 void  launch_viewer();
 void  swap(int* a, int* b);
-int   find_min(float in_frame[MAX_FRAME_SIZE], int n, float* min, int* index);
-int   find_max(float in_frame[MAX_FRAME_SIZE], int n, float* max, int* index);
+int   find_min(float in_frame[MAX_FRAME_SIZE], int n);
+int   find_max(float in_frame[MAX_FRAME_SIZE], int n);
 
 const char* valid_str(int valid);
 // int   write_img_file(const char* filename, float frames[NUM_FRAMES][MAX_FRAME_SIZE], slmx4* sensor);
@@ -298,114 +299,139 @@ void apply_breath_filter(float* out_signal, float in_signal, breathFilter* filte
 // Extract breath signal from frames 
 void extract_breath_signal(float* breath_signal,  int* valid, float in_frame[MAX_FRAME_SIZE], int num_samples)
 {
-    // Caution: this function should not be used in a multithread context
+    // Caution: this function should not be used in a multithreading context
     static int tracking = 0;            // true if algorithm is in tracking mode
     static int lost_counter = 0;        // number of frame in lost mode
-    static int last_valid_position = 0; // last position in valid mode    
-    static int last_negative = 0;       // true if value found at last position was negative
+    static int last_position = 0;       // last position in valid mode    
+    static int last_value = 0;          // signal value of the previous frame
 
-    // Find max of absolute value in spatial domain
-    float value, min, max;
-    int position, pos_min, pos_max, has_min, has_max;
+    int position;                       // index of the max absolute value in in_frame[]
+    int pos_min, pos_max;
 
-    has_min = find_min(in_frame, num_samples, &min, &pos_min);
-    has_max = find_max(in_frame, num_samples, &max, &pos_max);
-    if (has_min && has_max) {
-        if (-min > max) {
-            value = min;
-            position = pos_min;
-        }
-        else {
-            value = max;
-            position = pos_max;
-        }
+    // Find min and max of the frame (above MIN_VALID_SIGNAL)
+    pos_min = find_min(in_frame, num_samples);
+    pos_max = find_max(in_frame, num_samples);
+
+    // Find the position of greatest min or max in frame
+    position = 0;
+    if (pos_min && pos_max) {
+        position = -in_frame[pos_min] > in_frame[pos_max] ? pos_min : pos_max;
     }
-    else if (has_max) {
-        value = max;
-        position = pos_max;
-    } 
-    else if (has_min) {
-        value = min;
+    else if (pos_min) {
         position = pos_min;
+    } 
+    else if (pos_max) {
+        position = pos_max;
     }
-    else {
-        value = 0.0;
-        position = 0;
-    }   
 
-
-// **** ICI - revoir avec le nouvel algo pour le max
-
+    // Prepare to extract the breath signal. At start, assume this frame is invalid.
     *valid = INVALID;
     *breath_signal = 0.0;
 
-    // A max above MAX_THRESHOLD was found in this frame
     if (position) { 
+        // A value above MIN_VALID_SIGNAL was found in this frame
 
-        // If we are not in tracking mode, then accept signal at this position
-        // an go in tracking mode
         if (!tracking) {        
-            *valid = VALID;
+            // We are not in tracking mode and data is valid.  
+            // Accept this data. Go in tracking mode.
             tracking = 1;
+            lost_counter = 0;
+            last_position = position;
+            last_value = in_frame[position];
+
+            *valid = VALID;
             *breath_signal = in_frame[position];
-            last_valid_position = position;
         }
 
-        // If we are in already tracking mode, perform a position continuity test 
-        // before accepting the signal. 
-        // Stay in tracking mode for at most LOST_COUNTER_MAX frames
         else {
-            // Test if the sign has changed
+            // We are tracking mode.
+            // Perform few tests before accepting data. 
+
+            // Check if signal amplitude is within an acceptable range from the last frame
+            if (fabsf(in_frame[position] - last_value) > MAX_VALID_SLOPE) {
+                // The signal's slope is to steep to be breath data.
+                // Data is invalid.  Step out of tracking mode.
+                tracking = 0;
+                lost_counter = 0;
+                last_position = 0;
+                last_value = 0.0;
+
+                *valid = INVALID;
+                *breath_signal = 0.0;
+            }
  
-            // Test if if max position is too far from the previous one
-            if (position > last_valid_position + CENTER_GAP || position < last_valid_position - CENTER_GAP) {
+            // Check if position is too far from the last valid one.
+            else if (position > last_position + POSITION_GAP || position < last_position - POSITION_GAP) {
+                // The max position is too far from the last valid one.
+                // Data is not valid, but allow to progress blindly for at most LOST_COUNTER_MAX times
 
-                // The position is too far. Prepare to go in LOST mode. 
-                lost_counter++;
-
-                // Keep the ref position for at most LOST_COUNTER_MAX
-                if (lost_counter <= LOST_COUNTER_MAX) {
-                    *valid = LOST;
-                    position = last_valid_position;
-                    *breath_signal = in_frame[position];
-                }
-                // We have been lost for too many frames, reset the search
-                else {
-                    *valid = INVALID;
-                    lost_counter = 0;
+                // Check if we have exceeded LOST_COUNTER_MAX times
+                if (lost_counter > LOST_COUNTER_MAX) {
+                    // We have been progressing blindly for too many frames.
+                    // Data is invalid.  Step out of tracking mode.
                     tracking = 0;
+                    lost_counter = 0;
+                    last_position = 0;
+                    last_value = 0.0;
+
+                    *valid = INVALID;
+                    *breath_signal = 0.0;
+                }
+                else {
+                    // We have not exceeded LOST_COUNTER_MAX times.
+                    // Use position from last valid frame. Use value of current frame at this position.
+                    // We are progressing blindly (LOST). Stay in tracking mode.
+                    tracking = 1;
+                    lost_counter++;
+                    position = last_position;
+                    last_value = in_frame[position];
+
+                    *valid = LOST;
+                    *breath_signal = in_frame[position];
                 }
             }
 
-            // This max position is close to the previous one, we're OK
+            // This position is close enough to the previous one, use the new position data
             else {
+                tracking = 1;
+                lost_counter = 0;
+                last_position = position;
+                last_value = in_frame[position];
+
                 *valid = VALID;
                 *breath_signal = in_frame[position];
-                last_valid_position = position;
-                lost_counter = 0;
             }
         }
     }
 
-    // A max above MAX_THRESHOLD was not found in this frame
     else {
-        // Keep the previous position only if one exists
+        // A value above MIN_VALID_SIGNAL was not found in this frame
         if (tracking) {
-            // Prepare to go in LOST mode. 
-            lost_counter++;
+            // We are in tracking mode
 
-            // Keep the previous position for at most LOST_COUNTER_MAX
-            if (lost_counter <= LOST_COUNTER_MAX) {
-                *valid = LOST;
-                position = last_valid_position;
-                *breath_signal = in_frame[position];
-            }
-
-            // We have been in lost mode for too much time, reset the search
-            else {
-                *valid = INVALID;
-                lost_counter = 0;
+            // Check if we have exceeded LOST_COUNTER_MAX times
+            if (lost_counter > LOST_COUNTER_MAX) {
+                // We have been progressing blindly for too many frames.
+                // Data is invalid.  Step out of tracking mode.
                 tracking = 0;
+                lost_counter = 0;
+                last_position = 0;
+                last_value = 0.0;
+
+                *valid = INVALID;
+                *breath_signal = 0.0;
+            }
+            else {
+                // Keep the previous position for at most LOST_COUNTER_MAX times
+                // Use position from last valid frame. Use value of current frame at this position.
+                // We are progressing blindly (LOST). Stay in tracking mode.
+                tracking = 1;
+                lost_counter++;
+                position = last_position;
+                last_value = in_frame[position];
+
+                *valid = LOST;
+                *breath_signal = in_frame[position];
             }
         }
     }
@@ -470,36 +496,32 @@ int  fsign(float x)
     return 0;
 }
 
-int find_min(float in_frame[MAX_FRAME_SIZE], int n, float* min, int* index)
+int find_min(float in_frame[MAX_FRAME_SIZE], int n)
 {
-    int found = 0;
-    *min = 0.0;
-    *index = 0;
+    float min = 0.0;
+    int index = 0;
 
     for (int j = 1; j < n; j++) {
-        if (in_frame[j] > -MAX_THRESHOLD) continue;
-        if (in_frame[j] < *min) {
-            *min = in_frame[j]; 
-            *index = j;
-            found = 1;
+        if (in_frame[j] > -MIN_VALID_SIGNAL) continue;
+        if (in_frame[j] < min) {
+            min = in_frame[j]; 
+            index = j;
         }
     }
-    return found;
+    return index;
 }
 
-int find_max(float in_frame[MAX_FRAME_SIZE], int n, float* max, int* index)
+int find_max(float in_frame[MAX_FRAME_SIZE], int n)
 {
-    int found = 0;
-    *max = 0.0;
-    *index = 0;
+    float max = 0.0;
+    int index = 0;
 
     for (int j = 1; j < n; j++) {
-        if (in_frame[j] < MAX_THRESHOLD) continue;
-        if (in_frame[j] > *max) {
-            *max = in_frame[j]; 
-            *index = j;
-            found = 1;
+        if (in_frame[j] < MIN_VALID_SIGNAL) continue;
+        if (in_frame[j] > max) {
+            max = in_frame[j]; 
+            index = j;
         }
     }
-    return found;
+    return index;
 }

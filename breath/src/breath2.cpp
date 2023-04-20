@@ -29,7 +29,8 @@
 #define LOST 2
 #define LOST_COUNTER_MAX 14
 #define POSITION_GAP 5
-#define DISPLAY_RANGE 0.05
+#define DISPLAY_RANGE 0.03
+#define MAX_BREATH_SLOPE 2.0
 
 #define FIFO_MODE 0666
 #define DATA_FILE_NAME "./DATA"
@@ -60,6 +61,7 @@ int   position_debug;
 int   slope_debug;
 int   gap_debug;
 int   lost_debug;
+int   breath_debug;
 float in_frame_debug;
 float last_value_debug;
 
@@ -111,12 +113,12 @@ int main(int argc, char* argv[])
 	signal(SIGINT, clean_up);
 
 	// Initialise static memory
-	memset(acquisition_frame,      0, MAX_FRAME_SIZE*2*sizeof(float));
-	memset(raw_frame[0],           0, MAX_FRAME_SIZE*sizeof(float));
-	memset(raw_frame[1],           0, MAX_FRAME_SIZE*sizeof(float));
-	memset(diff_frame,             0, MAX_FRAME_SIZE*sizeof(float));
-	memset(filtered_td_frame,      0, MAX_FRAME_SIZE*sizeof(float));
-	memset(filtered_sd_frame,      0, MAX_FRAME_SIZE*sizeof(float));
+	memset(acquisition_frame, 0, MAX_FRAME_SIZE*2*sizeof(float));
+	memset(raw_frame[0],      0, MAX_FRAME_SIZE*sizeof(float));
+	memset(raw_frame[1],      0, MAX_FRAME_SIZE*sizeof(float));
+	memset(diff_frame,        0, MAX_FRAME_SIZE*sizeof(float));
+	memset(filtered_td_frame, 0, MAX_FRAME_SIZE*sizeof(float));
+	memset(filtered_sd_frame, 0, MAX_FRAME_SIZE*sizeof(float));
 
     frequency = 0.0;
     previous_freq = 0.0;
@@ -216,9 +218,12 @@ int main(int argc, char* argv[])
 
         if (show_siqnal) {
             printf("%5.2f %s ", frequency * 60, valid_str(valid));
-            printf("%c",  slope_debug ? 'S' : ' ');
-            printf("%c",  gap_debug   ? 'G' : ' ');
-            printf("%c ", lost_debug  ? 'L' : ' ');
+
+            printf("%c",  slope_debug   ? 'S' : ' ');
+            printf("%c",  gap_debug     ? 'G' : ' ');
+            printf("%c ", lost_debug    ? 'L' : ' ');
+            printf("%c ", breath_debug  ? 'B' : ' ');
+
             for (int i = 0; i < MAX_FRAME_SIZE/2; i++) printf("%s", display_char(display, filtered_td_frame, i, position_debug));
             printf(" %7.4f", filtered_td_frame[position_debug]);
             printf("\n");
@@ -330,8 +335,6 @@ void extract_breath_signal(float* breath_signal,  int* valid, float in_frame[MAX
     slope_debug = 0;
     gap_debug = 0;
     lost_debug = 0;
-    in_frame_debug = 0.0;
-//    last_value_debug = 0.0;
 
     // Find min and max of the frame (above MIN_VALID_SIGNAL)
     pos_min = find_min(in_frame, num_samples);
@@ -363,8 +366,6 @@ void extract_breath_signal(float* breath_signal,  int* valid, float in_frame[MAX
             lost_counter = 0;
             last_position = position;
             last_value = in_frame[position];
-                            last_value_debug = last_value;
-
 
             *valid = VALID;
             *breath_signal = in_frame[position];
@@ -378,9 +379,6 @@ void extract_breath_signal(float* breath_signal,  int* valid, float in_frame[MAX
             if (fabsf(in_frame[position] - last_value) > MAX_VALID_SLOPE) {
                 // The signal's slope is to steep to be breath data.
                 // Data is invalid.  Step out of tracking mode.
-                in_frame_debug = in_frame[position];
-                last_value_debug = last_value;
-
                 tracking = 0;
                 lost_counter = 0;
                 last_position = 0;
@@ -393,7 +391,7 @@ void extract_breath_signal(float* breath_signal,  int* valid, float in_frame[MAX
             }
  
             // Check if position is too far from the last valid one.
-            else if (position > last_position + POSITION_GAP || position < last_position - POSITION_GAP) {
+            else if (position > last_position + POSITION_GAP) {
                 // The max position is too far from the last valid one.
                 // Data is not valid, but allow to progress blindly for at most LOST_COUNTER_MAX times
 
@@ -405,11 +403,10 @@ void extract_breath_signal(float* breath_signal,  int* valid, float in_frame[MAX
                     lost_counter = 0;
                     last_position = 0;
                     last_value = 0.0;
-                                    last_value_debug = last_value;
-
 
                     *valid = INVALID;
                     *breath_signal = 0.0;
+
                     gap_debug = 1;
                 }
                 else {
@@ -418,13 +415,49 @@ void extract_breath_signal(float* breath_signal,  int* valid, float in_frame[MAX
                     // We are progressing blindly (LOST). Stay in tracking mode.
                     tracking = 1;
                     lost_counter++;
-                    position = last_position;
+                    position = last_position + 1;
+                    last_position++;
                     last_value = in_frame[position];
-                                    last_value_debug = last_value;
-
 
                     *valid = LOST;
                     *breath_signal = in_frame[position];
+
+                    gap_debug = 1;
+                }
+            }
+
+            else if (position < last_position - POSITION_GAP) {
+                // The max position is too far from the last valid one.
+                // Data is not valid, but allow to progress blindly for at most LOST_COUNTER_MAX times
+
+                // Check if we have exceeded LOST_COUNTER_MAX times
+                if (lost_counter > LOST_COUNTER_MAX) {
+                    // We have been progressing blindly for too many frames.
+                    // Data is invalid.  Step out of tracking mode.
+                    tracking = 0;
+                    lost_counter = 0;
+                    last_position = 0;
+                    last_value = 0.0;
+
+                    *valid = INVALID;
+                    *breath_signal = 0.0;
+
+                    gap_debug = 1;
+                }
+                else {
+                    // We have not exceeded LOST_COUNTER_MAX times.
+                    // Use position from last valid frame. Use value of current frame at this position.
+                    // We are progressing blindly (LOST). Stay in tracking mode.
+                    tracking = 1;
+                    lost_counter++;
+                    position = last_position - 1;
+                    last_position--;
+                    last_value = in_frame[position];
+
+                    *valid = LOST;
+                    *breath_signal = in_frame[position];
+
+                    gap_debug = 1;
                 }
             }
 
@@ -434,8 +467,6 @@ void extract_breath_signal(float* breath_signal,  int* valid, float in_frame[MAX
                 lost_counter = 0;
                 last_position = position;
                 last_value = in_frame[position];
-                                last_value_debug = last_value;
-
 
                 *valid = VALID;
                 *breath_signal = in_frame[position];
@@ -456,11 +487,10 @@ void extract_breath_signal(float* breath_signal,  int* valid, float in_frame[MAX
                 lost_counter = 0;
                 last_position = 0;
                 last_value = 0.0;
-                                last_value_debug = last_value;
-
 
                 *valid = INVALID;
                 *breath_signal = 0.0;
+
                 lost_debug = 1;
             }
             else {
@@ -471,11 +501,11 @@ void extract_breath_signal(float* breath_signal,  int* valid, float in_frame[MAX
                 lost_counter++;
                 position = last_position;
                 last_value = in_frame[position];
-                                last_value_debug = last_value;
-
 
                 *valid = LOST;
                 *breath_signal = in_frame[position];
+
+                lost_debug = 1;
             }
         }
     }
@@ -487,6 +517,7 @@ void extract_breath_signal(float* breath_signal,  int* valid, float in_frame[MAX
 // Find frequencies from the breath signal
 void  find_frequency(float* frequency, float previous_freq, float in_signal, int valid, float sampling_rate, zeroxing_t* zeroxing)
 {
+    breath_debug = 0;
     if (valid == INVALID) {
         *frequency = 0.0;
         zeroxing_init(zeroxing);
@@ -496,6 +527,11 @@ void  find_frequency(float* frequency, float previous_freq, float in_signal, int
         int found = zeroxing_put(zeroxing, in_signal);
         if (found) {
             *frequency = zeroxing_get(zeroxing, sampling_rate);
+            if (previous_freq > 0.0 && fabsf(previous_freq - *frequency)*60.0 > MAX_BREATH_SLOPE) {
+                *frequency = 0.0;
+                zeroxing_init(zeroxing);
+                breath_debug = 1;
+            }
         }
     }
 }

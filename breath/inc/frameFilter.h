@@ -6,21 +6,21 @@
 FIR filter designed with
  http://t-filter.appspot.com
 
-sampling frequency: 7 Hz
+sampling frequency: 27 Hz
 
 * 0 Hz - 0.2 Hz
   gain = 1
   desired ripple = 5 dB
-  actual ripple = 3.9627724820004313 dB
+  actual ripple = 3.7499299072054098 dB
 
-* 0.35 Hz - 3.5 Hz
+* 0.35 Hz - 13.5 Hz
   gain = 0
   desired attenuation = -20 dB
-  actual attenuation = -20.438909072505655 dB
+  actual attenuation = -20.903034313999697 dB
 
 */
 
-#define FRAMEFILTER_TAP_NUM 33
+#define FRAMEFILTER_TAP_NUM 129
 
 typedef struct {
   float history[FRAMEFILTER_TAP_NUM];

@@ -11,6 +11,9 @@
 #include <unistd.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <arpa/inet.h>
+#include <sys/select.h>
+
 
 #include "slmx4_vcom.h"
 #include "serialib.h"
@@ -18,6 +21,7 @@
 #include "spatialFilter.h"
 #include "breathFilter.h"
 #include "zeroxing.h"
+#include "tinyosc.h"
 
 #define MAX_FRAME_SIZE 188
 
@@ -64,6 +68,8 @@ unsigned long int times;
 int   new_frame_index;
 int   old_frame_index;
 float sampling_rate;
+struct sockaddr_in server_addr;
+int   fd;
 
 frameFilter     _filters_td_mem[MAX_FRAME_SIZE];
 frameFilter*     filters_td[MAX_FRAME_SIZE];
@@ -97,18 +103,40 @@ const char* mode_str(int valid);
 // int   write_img_file(const char* filename, float frames[NUM_FRAMES][MAX_FRAME_SIZE], slmx4* sensor);
 // int   read_img_file(const char* filename, float frames[NUM_FRAMES][MAX_FRAME_SIZE]);
 // int   write_sig_file(const char* filename, int valid[NUM_FRAMES], int max_indices[NUM_FRAMES], float breath_signal[NUM_FRAMES], int all);
+void send_to_max(struct sockaddr_in* server, float frequency);
 
 
 int main(int argc, char* argv[])
 {
-    int show_siqnal = argc >= 2;
-    int first = 1;
+    if (argc != 1 && argc != 3) {
+        printf("Usage:\n");
+        printf("       breath2 <ip_address> <port>  (with MaxMSP)\n");
+        printf(" or    breath2                      (in debug mode)\n");
+        return 1;
+    }
 
-	// unlink(DATA_FILE_NAME);display = 
-	// if (argc == 1) {
-	// 	mkfifo(DATA_FILE_NAME, FIFO_MODE);
-	// 	launch_viewer();
-	// }
+    int debug = argc == 1;
+    int first = 1;
+    fd = 0;
+
+    if (!debug) {
+        struct in_addr addr_binary;
+        if (inet_pton(AF_INET, argv[1], &addr_binary) == 0) {
+            printf("Error: invalid ip address\n");
+            return 1;
+        };
+
+        fd = socket(AF_INET, SOCK_DGRAM, 0);
+        if (fd == -1) {
+            printf("Error: unable to open UDP connection\n");
+            return 1;
+        }
+
+        memset(&server_addr, 0, sizeof(server_addr));
+        server_addr.sin_family = AF_INET;
+        server_addr.sin_addr = addr_binary;
+        server_addr.sin_port = htons(atoi(argv[2]));
+    }
 
 	// Execute clean_up on CTRL_C
 	signal(SIGINT, clean_up);
@@ -152,7 +180,7 @@ int main(int argc, char* argv[])
 	}
 
 	// Initialise sensor
-	printf("Initialize SLMX4 sensor\n");
+	printf("Initializing SLMX4 sensor\n");
 	if (sensor.begin(SERIAL_PORT) == EXIT_FAILURE) {
 		exit(EXIT_FAILURE);
 	}
@@ -188,7 +216,7 @@ int main(int argc, char* argv[])
 	display_slmx4_status();
 
 	// Acquire data
-	printf("Data aquisition starts\n");
+	printf("Breath frequency detection in progress. Type CTRL_C to exit.\n");
 
     while(1) {
     	timer.initTimer();
@@ -212,8 +240,7 @@ int main(int argc, char* argv[])
         find_frequency(breath_point, previous_freq, sampling_rate, zeroxing);
         previous_freq = breath_point->frequency;
 
-        printf("%d %7.2f", breath_point->freq_valid, breath_point->frequency * 60.0);
-        if (show_siqnal) {
+         if (debug) {
             printf(" %s ", mode_str(breath_point->mode));
             printf("%c",  breath_point->is_slope   ? 'S' : ' ');
             printf("%c",  breath_point->is_gap     ? 'G' : ' ');
@@ -222,8 +249,11 @@ int main(int argc, char* argv[])
 
             for (int i = 0; i < MAX_FRAME_SIZE/2; i++) printf("%s", display_char(display, filtered_td_frame, i, breath_point));
             printf(" %7.4f", filtered_td_frame[breath_point->position]);
+            printf("\n");
         }
-        printf("\n");
+        else {
+            send_to_max(&server_addr, breath_point->frequency * 60.0f);
+        }
     }
 
 	clean_up(0);
@@ -261,6 +291,7 @@ void clean_up(int sig)
 {
 	printf("\nClose sensor\n");
 	sensor.end();
+    if (fd != 0) close(fd);
 	// unlink(DATA_FILE_NAME);
 	exit(EXIT_SUCCESS);
 }
@@ -610,4 +641,14 @@ int find_max(float in_frame[MAX_FRAME_SIZE], int n)
         }
     }
     return index;
+}
+
+void send_to_max(struct sockaddr_in* server, float frequency)
+{
+    int len;
+    char buffer[100];
+
+    len = tosc_writeMessage(buffer, sizeof(buffer), "", "f", frequency);
+    // tosc_printOscBuffer(buffer, len);
+    sendto(fd, buffer, len, MSG_CONFIRM, (const struct sockaddr *) server, sizeof(sockaddr_in));
 }

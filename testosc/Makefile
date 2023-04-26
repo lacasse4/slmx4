@@ -6,9 +6,9 @@ bin/breath1: src/breath1.cpp src/slmx4_vcom.cpp src/serialib.cpp src/frameFilter
 			 inc/slmx4_vcom.h inc/serialib.h inc/frameFilter.h inc/spatialFilter.h inc/breathFilter.h inc/zeroxing.h
 	g++ -g -Wall -o bin/breath1 -I inc src/breath1.cpp src/slmx4_vcom.cpp src/serialib.cpp src/frameFilter.c src/spatialFilter.c src/breathFilter.c src/zeroxing.c
 
-bin/breath2: src/breath2.cpp src/slmx4_vcom.cpp src/serialib.cpp src/frameFilter.c src/spatialFilter.c src/breathFilter.c src/zeroxing.c src/tinyosc.c \
-			 inc/slmx4_vcom.h inc/serialib.h inc/frameFilter.h inc/spatialFilter.h inc/breathFilter.h inc/zeroxing.h inc/tinyosc.h
-	g++ -g -Werror -o bin/breath2 -I inc src/breath2.cpp src/slmx4_vcom.cpp src/serialib.cpp src/frameFilter.c src/spatialFilter.c src/breathFilter.c src/zeroxing.c src/tinyosc.c
+bin/breath2: src/breath2.cpp src/slmx4_vcom.cpp src/serialib.cpp src/frameFilter.c src/spatialFilter.c src/breathFilter.c src/zeroxing.c \
+			 inc/slmx4_vcom.h inc/serialib.h inc/frameFilter.h inc/spatialFilter.h inc/breathFilter.h inc/zeroxing.h
+	g++ -g -Wall -o bin/breath2 -I inc src/breath2.cpp src/slmx4_vcom.cpp src/serialib.cpp src/frameFilter.c src/spatialFilter.c src/breathFilter.c src/zeroxing.c
 
 clean:
 	rm -rf bin

@@ -1,0 +1,8 @@
+[Desktop Entry]
+Encoding=UTF-8
+Name=Breathdebug
+GenericName=Breath frequency detection with SLMX4 interfaced with MaxMSP
+Exec=/home/pi/slmx4/breath/launch_debug.sh
+Icon=lxterminal
+Terminal=true
+Type=Application

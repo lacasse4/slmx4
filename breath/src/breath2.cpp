@@ -34,7 +34,7 @@
 #define LOST_COUNTER_MAX 14
 #define POSITION_GAP 2
 #define DISPLAY_RANGE 0.03
-#define MAX_BREATH_SLOPE 2.0
+#define MAX_BREATH_SLOPE 3.0
 
 #define FIFO_MODE 0666
 #define DATA_FILE_NAME "./DATA"
@@ -103,7 +103,8 @@ const char* mode_str(int valid);
 // int   write_img_file(const char* filename, float frames[NUM_FRAMES][MAX_FRAME_SIZE], slmx4* sensor);
 // int   read_img_file(const char* filename, float frames[NUM_FRAMES][MAX_FRAME_SIZE]);
 // int   write_sig_file(const char* filename, int valid[NUM_FRAMES], int max_indices[NUM_FRAMES], float breath_signal[NUM_FRAMES], int all);
-void send_to_max(struct sockaddr_in* server, float frequency);
+void send_frequency_to_max(struct sockaddr_in* server, float frequency);
+void send_valid_to_max(struct sockaddr_in* server, int valid);
 
 
 int main(int argc, char* argv[])
@@ -238,9 +239,9 @@ int main(int argc, char* argv[])
         extract_breath_signal(breath_point, filtered_td_frame, sensor.get_num_samples());
         apply_breath_filter(&breath_point->signal, breath_point->signal, filter_br);
         find_frequency(breath_point, previous_freq, sampling_rate, zeroxing);
-        previous_freq = breath_point->frequency;
 
          if (debug) {
+            printf("%d %7.2f", breath_point->freq_valid, breath_point->frequency * 60.0);
             printf(" %s ", mode_str(breath_point->mode));
             printf("%c",  breath_point->is_slope   ? 'S' : ' ');
             printf("%c",  breath_point->is_gap     ? 'G' : ' ');
@@ -248,12 +249,14 @@ int main(int argc, char* argv[])
             printf("%c ", breath_point->is_freq    ? 'F' : ' ');
 
             for (int i = 0; i < MAX_FRAME_SIZE/2; i++) printf("%s", display_char(display, filtered_td_frame, i, breath_point));
-            printf(" %7.4f", filtered_td_frame[breath_point->position]);
             printf("\n");
         }
         else {
-            send_to_max(&server_addr, breath_point->frequency * 60.0f);
+            if (previous_freq != breath_point->frequency) {
+                send_frequency_to_max(&server_addr, breath_point->frequency * 60.0f);
+            }
         }
+        previous_freq = breath_point->frequency;
     }
 
 	clean_up(0);
@@ -643,7 +646,7 @@ int find_max(float in_frame[MAX_FRAME_SIZE], int n)
     return index;
 }
 
-void send_to_max(struct sockaddr_in* server, float frequency)
+void send_frequency_to_max(struct sockaddr_in* server, float frequency)
 {
     int len;
     char buffer[100];
@@ -652,3 +655,14 @@ void send_to_max(struct sockaddr_in* server, float frequency)
     // tosc_printOscBuffer(buffer, len);
     sendto(fd, buffer, len, MSG_CONFIRM, (const struct sockaddr *) server, sizeof(sockaddr_in));
 }
+
+void send_valid_to_max(struct sockaddr_in* server, int valid) {
+    int len;
+    char buffer[100];
+    const char* valid_s = valid ? "T" : "F";
+
+    len = tosc_writeMessage(buffer, sizeof(buffer), "", valid_s);
+    // tosc_printOscBuffer(buffer, len);
+    sendto(fd, buffer, len, MSG_CONFIRM, (const struct sockaddr *) server, sizeof(sockaddr_in));
+}
+

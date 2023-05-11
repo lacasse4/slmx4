@@ -1,2 +1,2 @@
 #!/bin/sh
-/home/pi/slmx4/breath/bin/breath2 192.168.68.104 9000
+/home/pi/slmx4/breath/bin/breath2 10.0.0.33 7401

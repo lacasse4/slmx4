@@ -253,6 +253,7 @@ int main(int argc, char* argv[])
         }
         else {
             if (previous_freq != breath_point->frequency) {
+                printf("Sending to max\n");
                 send_frequency_to_max(&server_addr, breath_point->frequency * 60.0f);
             }
         }
@@ -650,10 +651,14 @@ void send_frequency_to_max(struct sockaddr_in* server, float frequency)
 {
     int len;
     char buffer[100];
+    int bytes_sent;
+    char buffer2[100];
 
-    len = tosc_writeMessage(buffer, sizeof(buffer), "", "f", frequency);
+    sprintf(buffer2, "%0.4f", frequency);
+    len = tosc_writeMessage(buffer, sizeof(buffer), "slmx4", "s", buffer2);
     // tosc_printOscBuffer(buffer, len);
-    sendto(fd, buffer, len, MSG_CONFIRM, (const struct sockaddr *) server, sizeof(sockaddr_in));
+    bytes_sent = sendto(fd, buffer, len, MSG_CONFIRM, (const struct sockaddr *) server, sizeof(sockaddr_in));
+    printf("%s\n", buffer2);
 }
 
 void send_valid_to_max(struct sockaddr_in* server, int valid) {

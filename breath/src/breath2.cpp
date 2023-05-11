@@ -253,7 +253,6 @@ int main(int argc, char* argv[])
         }
         else {
             if (previous_freq != breath_point->frequency) {
-                printf("Sending to max\n");
                 send_frequency_to_max(&server_addr, breath_point->frequency * 60.0f);
             }
         }

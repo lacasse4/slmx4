@@ -22,7 +22,6 @@ if len(sys.argv) != 2:
     quit()
 
 y, n = read_data(sys.argv[1])
-print(n)
 
 figure, axes = plt.subplots(figsize=(16,8))
 figure.show()
@@ -32,7 +31,7 @@ axes.set(title="Power spectrum density", xlabel="n=%s" % n)
 axes.set_xlabel("Time in 141 ms increment")
 axes.set_ylabel("PSD in db");
 axes.set_autoscale_on(False)
-axes.set_ylim(bottom=0, top=2)
+axes.set_ylim(bottom=0, top=3)
 axes.set_xlim(left=0, right=n)
 x = [a for a in range(n)]
 axes.plot(x, y, 'b-')

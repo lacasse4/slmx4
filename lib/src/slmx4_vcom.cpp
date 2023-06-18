@@ -217,7 +217,7 @@ int slmx4::get_frame_normalized(float* frame, int in_db)
 // Send a command such as "VarGetValue_ByName(dac_min)"
 // to SLMX4 and receive data as a string.  
 // Object parameters are not modified by this method. For debugging only.
-// The use of getters is saffer.
+// Use getters defined previously for a safe usage.
 char* slmx4::get_value_by_name(const char* command)
 {
 	int n_bytes_read;
@@ -453,11 +453,11 @@ int slmx4::get_bytes(const char* command, float* frame, int n_bytes)
 
 /*
  * Compute the power spectrum density (psd) in db 
- * frame provided that:
+ * provided that:
  *   - its size is num_samples * 2
  * 	 - real and imaginary data are interleaved
  * The result is half the size of the input data and
- * it is place back in 'frame'.
+ * it is place in in the first half of 'frame'.
  * The second half of 'frame' is set to 0.0
  */ 
 void slmx4::compute_psd_in_db(float* frame)
@@ -465,16 +465,16 @@ void slmx4::compute_psd_in_db(float* frame)
 	int i;
 	float re, im, power;
 
-	// re = frame[0];
-	// im = frame[1];
-	// float zero_db = compute_power(re, im);
+	re = frame[0];
+	im = frame[1];
+	float zero_db = compute_power(re, im);
 
 	for (i = 0; i < num_samples; i++) {
 		re = frame[i*2];
 		im = frame[i*2+1];
 		power = compute_power(re, im);
-		frame[i] = 10*log10f(power/ZERO_DB_POWER);
-		// frame[i] = 10*log10f(power/zero_db);
+		// frame[i] = 10*log10f(power/ZERO_DB_POWER);
+		frame[i] = 10*log10f(power/zero_db);
 	}
 
 	memset(&frame[num_samples], 0, num_samples*4);

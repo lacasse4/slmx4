@@ -82,7 +82,7 @@ int main(int argc, char* argv[])
 	while (1) {
 		printf("Frame %ld, ", frame_count++);
 		fflush(stdout);
-		sensor.get_frame_normalized(sensor_data, POWER_IN_DB);
+		sensor.get_frame_normalized(sensor_data, POWER_IN_DB); // WARNING - DB are now calculated in reference to the first point of radar data.
 		peak = find_highest_peak(&sensor, sensor_data, 0.7, 2.0);
 		printf("distance = %5.3f, ", peak.distance);
 

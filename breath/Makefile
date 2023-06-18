@@ -1,14 +1,28 @@
 $(shell mkdir -p bin)
 
-all: bin/breath1 bin/breath2
+LINC = ../lib/inc
+LSRC = ../lib/src
 
-bin/breath1: src/breath1.cpp src/slmx4_vcom.cpp src/serialib.cpp src/frameFilter.c src/spatialFilter.c src/breathFilter.c src/zeroxing.c \
-			 inc/slmx4_vcom.h inc/serialib.h inc/frameFilter.h inc/spatialFilter.h inc/breathFilter.h inc/zeroxing.h
-	g++ -g -Wall -o bin/breath1 -I inc src/breath1.cpp src/slmx4_vcom.cpp src/serialib.cpp src/frameFilter.c src/spatialFilter.c src/breathFilter.c src/zeroxing.c
+all: 	bin/breath1 \
+		bin/breath2
 
-bin/breath2: src/breath2.cpp src/slmx4_vcom.cpp src/serialib.cpp src/frameFilter.c src/spatialFilter.c src/breathFilter.c src/zeroxing.c src/tinyosc.c \
-			 inc/slmx4_vcom.h inc/serialib.h inc/frameFilter.h inc/spatialFilter.h inc/breathFilter.h inc/zeroxing.h inc/tinyosc.h
-	g++ -g -Werror -o bin/breath2 -I inc src/breath2.cpp src/slmx4_vcom.cpp src/serialib.cpp src/frameFilter.c src/spatialFilter.c src/breathFilter.c src/zeroxing.c src/tinyosc.c
+bin/breath1: src/breath1.cpp \
+		src/frameFilter.c src/spatialFilter.c src/breathFilter.c \
+		inc/frameFilter.h inc/spatialFilter.h inc/breathFilter.h \
+		$(LSRC)/slmx4_vcom.cpp $(LSRC)/serialib.cpp $(LSRC)/zeroxing.c \
+		$(LINC)/slmx4_vcom.h   $(LINC)/serialib.h   $(LINC)/zeroxing.h
+	g++ -g -Wall -o bin/breath1 -I inc -I $(LINC) src/breath1.cpp \
+		src/frameFilter.c src/spatialFilter.c src/breathFilter.c \
+		$(LSRC)/slmx4_vcom.cpp $(LSRC)/serialib.cpp $(LSRC)/zeroxing.c
+
+bin/breath2: src/breath2.cpp \
+		src/frameFilter.c src/spatialFilter.c src/breathFilter.c \
+		inc/frameFilter.h inc/spatialFilter.h inc/breathFilter.h \
+		$(LSRC)/slmx4_vcom.cpp $(LSRC)/serialib.cpp $(LSRC)/zeroxing.c $(LSRC)/tinyosc.c \
+		$(LINC)/slmx4_vcom.h   $(LINC)/serialib.h   $(LINC)/zeroxing.h $(LINC)/tinyosc.h
+	g++ -g -Werror -o bin/breath2 -I inc -I $(LINC) src/breath2.cpp \
+		src/frameFilter.c src/spatialFilter.c src/breathFilter.c \
+		$(LSRC)/slmx4_vcom.cpp $(LSRC)/serialib.cpp $(LSRC)/zeroxing.c $(LSRC)/tinyosc.c
 
 clean:
 	rm -rf bin

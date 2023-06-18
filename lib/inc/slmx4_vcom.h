@@ -5,7 +5,7 @@
 
 #define BAUD_RATE         115200
 #define TIMEOUT_MS        1000
-#define ACK_LEN           5         // "<ACK>" without '\0'
+#define ACK_LEN           5         // "<ACK>" string length without '\0'
 
 #define PORT_NAME_LENGTH  100
 #define MAX_RESPONSE_LEN  100

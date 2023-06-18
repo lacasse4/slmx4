@@ -48,11 +48,10 @@ for i in range(200):
     axes.set_xlabel("Time in 141 ms increment")
     axes.set_ylabel("PSD in db");
     axes.set_autoscale_on(False)
-    axes.set_ylim(bottom=-10.0, top=0.0)
+    axes.set_ylim(bottom=-40.0, top=0.0)
     axes.set_xlim(left=0, right=n)
     x = [a for a in range(n)]
-    y = [math.log(b/fr[i][0]) for b in fr[i]]
-    axes.plot(x, y, 'b-')
+    axes.plot(x, fr[i], 'b-')
     figure.canvas.draw()
     figure.canvas.flush_events()
     input(str(i))

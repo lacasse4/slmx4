@@ -61,9 +61,7 @@ int find_first_peak(float* signal, int start, int len)
 	float max = signal[start];
 	int  imax = start;
 	for (int i = start+1; i < len; i++) {
-		if (signal[i] < max) {
-			break;
-		}
+		if (signal[i] < max) break;
 		max = signal[i];
 		imax = i;
 	}

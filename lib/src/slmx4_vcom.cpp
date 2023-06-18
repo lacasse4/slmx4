@@ -327,7 +327,8 @@ int slmx4::close_radar()
 {
 	serial.flushReceiver();
 	serial.writeString("Close()");
-	return check_ACK("close_device()");
+	return 1;
+	// return check_ACK("close_device()");
 }
 
 // Flush serial input buffer

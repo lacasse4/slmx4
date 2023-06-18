@@ -12,5 +12,6 @@ void   erase_peak(peak_t* peak);
 peak_t find_highest_peak(float* signal, int num_samples, float frame_start, float frame_end, float from, float to);
 int    distance_to_index(float frame_start, float frame_end, int num_samples, float distance);
 float  index_to_distance(float frame_start, float frame_end, int num_samples, float index);
+peak_t find_first_peak_above(float* signal, int num_samples, float frame_start, float frame_end, float from, float to, float above);
 
 #endif

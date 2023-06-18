@@ -4,13 +4,33 @@ LINC = ../lib/inc
 LSRC = ../lib/src
 
 all: 	bin/extract_breath \
-		bin/extract_breath2
+		bin/extract_breath2 \
+		bin/showfreq5 \
+		bin/breath3
 
 bin/extract_breath: src/extract_breath.c
 	gcc -g -o bin/extract_breath src/extract_breath.c
 
 bin/extract_breath2: src/extract_breath2.c
 	gcc -g -o bin/extract_breath2 src/extract_breath2.c
+
+bin/showfreq5: src/showfreq5.cpp \
+		src/breathFilter.c \
+		inc/breathFilter.h \
+		$(LSRC)/slmx4_vcom.cpp $(LSRC)/serialib.cpp $(LSRC)/zeroxing.c \
+		$(LINC)/slmx4_vcom.h $(LINC)/serialib.h $(LINC)/zeroxing.h
+	g++ -g -Wall -o bin/showfreq5 -I inc -I $(LINC) src/showfreq5.cpp \
+		src/breathFilter.c \
+		$(LSRC)/slmx4_vcom.cpp $(LSRC)/serialib.cpp $(LSRC)/zeroxing.c
+
+bin/breath3: src/breath3.cpp \
+		src/breathFilter.c \
+		inc/breathFilter.h \
+		$(LSRC)/slmx4_vcom.cpp $(LSRC)/serialib.cpp $(LSRC)/zeroxing.c $(LSRC)/peak.c $(LSRC)/tinyosc.c \
+		$(LINC)/slmx4_vcom.h $(LINC)/serialib.h $(LINC)/zeroxing.h $(LINC)/peak.h $(LINC)/tinyosc.h
+	g++ -g -Werror -o bin/breath3 -I inc -I $(LINC) src/breath3.cpp \
+		src/breathFilter.c \
+		$(LSRC)/slmx4_vcom.cpp $(LSRC)/serialib.cpp $(LSRC)/zeroxing.c $(LSRC)/peak.c $(LSRC)/tinyosc.c
 
 clean:
 	rm -rf bin

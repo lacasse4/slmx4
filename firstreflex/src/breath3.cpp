@@ -27,8 +27,8 @@
 #define MAX_FRAME_SIZE 188
 #define MIN_DB  (-22.0)
 #define RESOLUTION 0.0525   // sensor resolution for the senser in ddc mode in meter
-#define MIN_DISTANCE (9*RESOLUTION) // in meter
-#define MAX_DISTANCE 2.0    // in meter
+#define START_PEAK_SEARCH  (9*RESOLUTION) // in meter
+#define STOP_PEAK_SEARCH   2.0            // in meter
 
 // constants associated with extract_breath_signal()
 #define MIN_VALID_SIGNAL 0.001
@@ -215,13 +215,16 @@ int main(int argc, char* argv[])
 	// Each complex data point is converted to its modulus in get_frame_normalized().  
     // Each data point correspond to a distance of 0.0525 m (5.25 cm).
 
-
     sensor.set_value_by_name("VarSetValue_ByName(iterations,32)");
     sensor.set_value_by_name("VarSetValue_ByName(pps,64)");
     sensor.set_value_by_name("VarSetValue_ByName(dac_min,896)");
     sensor.set_value_by_name("VarSetValue_ByName(dac_max,1152)");
     sensor.set_value_by_name("VarSetValue_ByName(ddc_en,1)");
 	display_slmx4_status(stderr);
+    if (sensor.get_num_samples() > MAX_FRAME_SIZE) {
+        fprintf(stderr, "Buffer size error\n");
+        clean_up(0);
+    }
 
 	// Acquire data
 	fprintf(stderr, "Breath frequency detection in progress. Type CTRL_C to exit.\n");
@@ -245,7 +248,7 @@ int main(int argc, char* argv[])
         // extract_breath_signal(breath_point, filtered_td_frame, sensor.get_num_samples());
 
         // peak = find_first_peak_above(frame, MAX_FRAME_SIZE, 0.0, 9.8, MIN_DISTANCE, MAX_DISTANCE, MIN_DB); 
-        peak = find_highest_peak(frame, MAX_FRAME_SIZE, 0.0, 9.8, MIN_DISTANCE, MAX_DISTANCE); 
+        peak = find_highest_peak(frame, MAX_FRAME_SIZE, sensor.get_frame_start(), sensor.get_frame_end(), START_PEAK_SEARCH, STOP_PEAK_SEARCH); 
         // apply_breath_filter(&peak.power, peak.power, filter_br);
         // find_frequency(breath_point, previous_freq, sampling_rate, zeroxing);
 

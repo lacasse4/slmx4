@@ -38,22 +38,22 @@ int main(int argc, char* argv[])
 		exit(EXIT_FAILURE);
 	}
 
-     sensor.set_value_by_name("VarSetValue_ByName(dac_min,896)");
-     sensor.set_value_by_name("VarSetValue_ByName(dac_max,1151)");
 
-//    sensor.set_value_by_name("VarSetValue_ByName(iterations,4)");
-//    sensor.set_value_by_name("VarSetValue_ByName(pps,1)");
-
-//    sensor.set_value_by_name("VarSetValue_ByName(fs,2.9)");
-    sensor.set_value_by_name("VarSetValue_ByName(frame_start,2.0)");
-    sensor.set_value_by_name("VarSetValue_ByName(frame_end,4.0)");
+    sensor.set_value_by_name("VarSetValue_ByName(iterations,32)");
+    sensor.set_value_by_name("VarSetValue_ByName(pps,64)");
+    sensor.set_value_by_name("VarSetValue_ByName(dac_min,896)");
+    sensor.set_value_by_name("VarSetValue_ByName(dac_max,1152)");
     sensor.set_value_by_name("VarSetValue_ByName(ddc_en,1)");
+
 	display_slmx4_status();
 	
+	unsigned long int ms = 0L;
+	for (int i = 0; i < 1000; i++) {
 		timer.initTimer();
-		sensor.get_frame_normalized(sensor_data, POWER_IN_DB);
-		unsigned long int ms = timer.elapsedTime_ms();
-		printf("\nTime to aquire a frame = %lu ms\n", ms);
+		sensor.get_frame_normalized(sensor_data, POWER_IN_WATT);
+		ms += timer.elapsedTime_ms();
+	}
+	printf("\nMean time to aquire a frame = %f ms\n", ms/1000.0);
 
 	clean_up(0);
 

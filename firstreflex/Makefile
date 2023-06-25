@@ -6,7 +6,8 @@ LSRC = ../lib/src
 all: 	bin/extract_breath \
 		bin/extract_breath2 \
 		bin/showfreq5 \
-		bin/breath3
+		bin/breath3 \
+		bin/fft1
 
 bin/extract_breath: src/extract_breath.c
 	gcc -g -o bin/extract_breath src/extract_breath.c
@@ -31,6 +32,9 @@ bin/breath3: src/breath3.cpp \
 	g++ -g -Werror -o bin/breath3 -I inc -I $(LINC) src/breath3.cpp \
 		src/breathFilter.c \
 		$(LSRC)/slmx4_vcom.cpp $(LSRC)/serialib.cpp $(LSRC)/zeroxing.c $(LSRC)/peak.c $(LSRC)/tinyosc.c
+
+bin/fft1: src/fft1.c 
+	gcc -g -Wall -o bin/fft1 src/fft1.c -lm -lfftw3f
 
 clean:
 	rm -rf bin

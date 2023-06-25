@@ -117,8 +117,8 @@ int main(int argc, char* argv[])
 {
     if (argc != 1 && argc != 3) {
         printf("Usage:\n");
-        printf("       breath2 <ip_address> <port>  (with MaxMSP)\n");
-        printf(" or    breath2                      (in debug mode)\n");
+        printf("       breath3 <ip_address> <port>  (with MaxMSP)\n");
+        printf(" or    breath3                      (in debug mode)\n");
         return 1;
     }
 
@@ -228,7 +228,7 @@ int main(int argc, char* argv[])
 
     while(1) {
     	timer.initTimer();
-		sensor.get_frame_normalized(frame, POWER_IN_DB);
+		sensor.get_frame_normalized(frame, POWER_IN_WATT);
 		sampling_rate = 1000.0 / timer.elapsedTime_ms();
 		// memcpy(raw_frame[new_frame_index], acquisition_frame, sensor.get_num_samples()*sizeof(float));
 
@@ -250,7 +250,9 @@ int main(int argc, char* argv[])
         // find_frequency(breath_point, previous_freq, sampling_rate, zeroxing);
 
         if (debug) {
-            printf("%7.1f\n", peak.power);
+            if (peak.index == -1) fprintf(stderr, "E");
+            printf("%7.4f\n", peak.distance);
+
             // printf(" %s ", mode_str(breath_point->mode));
             // printf("%c",  breath_point->is_slope   ? 'S' : ' ');
             // printf("%c",  breath_point->is_gap     ? 'G' : ' ');

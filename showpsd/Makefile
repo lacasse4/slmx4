@@ -20,9 +20,9 @@ bin/showpsd: src/showpsd.cpp \
 	g++ -g -Wall -o bin/showpsd -I $(LINC) src/showpsd.cpp $(LSRC)/slmx4_vcom.cpp $(LSRC)/serialib.cpp
 
 bin/showdif: src/showdif.cpp \
-		$(LSRC)/peak.c $(LSRC)/slmx4_vcom.cpp $(LSRC)/serialib.cpp \
-		$(LINC)/peak.h $(LINC)/slmx4_vcom.h   $(LINC)/serialib.h
-	g++ -g -Wall -o bin/showdif -I $(LINC) src/showdif.cpp $(LSRC)/peak.c $(LSRC)/slmx4_vcom.cpp $(LSRC)/serialib.cpp
+		$(LSRC)/slmx4_vcom.cpp $(LSRC)/serialib.cpp \
+		$(LINC)/slmx4_vcom.h   $(LINC)/serialib.h
+	g++ -g -Wall -o bin/showdif -I $(LINC) src/showdif.cpp $(LSRC)/slmx4_vcom.cpp $(LSRC)/serialib.cpp
 
 bin/benchmark: src/benchmark.cpp \
 		$(LSRC)/slmx4_vcom.cpp $(LSRC)/serialib.cpp \
@@ -30,10 +30,10 @@ bin/benchmark: src/benchmark.cpp \
 	g++ -g -Wall -o bin/benchmark -I $(LINC) src/benchmark.cpp $(LSRC)/slmx4_vcom.cpp $(LSRC)/serialib.cpp
 
 bin/showfilter: src/showfilter.cpp src/frameFilter.c inc/frameFilter.h \
-		$(LSRC)/peak.c $(LSRC)/slmx4_vcom.cpp $(LSRC)/serialib.cpp \
-		$(LINC)/peak.h $(LINC)/slmx4_vcom.h   $(LINC)/serialib.h 
+		$(LSRC)/slmx4_vcom.cpp $(LSRC)/serialib.cpp \
+		$(LINC)/slmx4_vcom.h   $(LINC)/serialib.h 
 	g++ -g -Wall -o bin/showfilter -I inc -I $(LINC) src/showfilter.cpp src/frameFilter.c \
-		$(LSRC)/peak.c $(LSRC)/slmx4_vcom.cpp $(LSRC)/serialib.cpp 
+		$(LSRC)/slmx4_vcom.cpp $(LSRC)/serialib.cpp 
 
 bin/showrms: src/showrms.cpp src/frameFilter.c inc/frameFilter.h \
 		$(LSRC)/slmx4_vcom.cpp $(LSRC)/serialib.cpp $(LSRC)/rms.c \

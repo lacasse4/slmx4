@@ -44,7 +44,6 @@ void launch_viewer();
 int main(int argc, char* argv[])
 {
 	int i, j;
-	// peak_t peak;
 
 	unlink(DATA_FILE_NAME);
 	// if (argc == 1) {

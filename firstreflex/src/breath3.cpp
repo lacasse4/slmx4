@@ -24,11 +24,9 @@
 #include "tinyosc.h"
 #include "peak.h"
 
-#define MAX_FRAME_SIZE 188
-#define MIN_DB  (-22.0)
-#define RESOLUTION 0.0525   // sensor resolution for the senser in ddc mode in meter
-#define START_PEAK_SEARCH  (9*RESOLUTION) // in meter
-#define STOP_PEAK_SEARCH   2.0            // in meter
+#define MAX_FRAME_SIZE      188
+#define START_PEAK_SEARCH   0.45  // in meter (set empiricaly to clear initial radar impulsion)
+#define STOP_PEAK_SEARCH    2.00  // in meter
 
 // constants associated with extract_breath_signal()
 #define MIN_VALID_SIGNAL 0.001
@@ -221,10 +219,20 @@ int main(int argc, char* argv[])
     sensor.set_value_by_name("VarSetValue_ByName(dac_max,1152)");
     sensor.set_value_by_name("VarSetValue_ByName(ddc_en,1)");
 	display_slmx4_status(stderr);
+
     if (sensor.get_num_samples() > MAX_FRAME_SIZE) {
         fprintf(stderr, "Buffer size error\n");
         clean_up(0);
     }
+
+    if (sensor.get_frame_start() > 0.0) {
+        fprintf(stderr, "Frame must start at position 0.0\n");
+        clean_up(0);
+    }
+
+    float samples_per_unit = sensor.get_num_samples() / sensor.get_frame_end();
+    fprintf(stderr, "samples per unit = %f\n", samples_per_unit);
+
 
 	// Acquire data
 	fprintf(stderr, "Breath frequency detection in progress. Type CTRL_C to exit.\n");
@@ -247,14 +255,13 @@ int main(int argc, char* argv[])
 	    // apply_frame_filters(filtered_td_frame, filtered_sd_frame, sensor.get_num_samples(), filters_td);
         // extract_breath_signal(breath_point, filtered_td_frame, sensor.get_num_samples());
 
-        // peak = find_first_peak_above(frame, MAX_FRAME_SIZE, 0.0, 9.8, MIN_DISTANCE, MAX_DISTANCE, MIN_DB); 
-        peak = find_highest_peak(frame, MAX_FRAME_SIZE, sensor.get_frame_start(), sensor.get_frame_end(), START_PEAK_SEARCH, STOP_PEAK_SEARCH); 
+        peak = find_peak_with_unit(frame, sensor.get_num_samples(), START_PEAK_SEARCH, STOP_PEAK_SEARCH, samples_per_unit);
         // apply_breath_filter(&peak.power, peak.power, filter_br);
         // find_frequency(breath_point, previous_freq, sampling_rate, zeroxing);
 
         if (debug) {
-            if (peak.index == -1) fprintf(stderr, "E");
-            printf("%7.4f\n", peak.distance);
+            if (peak.position == -1) fprintf(stderr, "E");
+            printf("%7.4f\n", peak.precise_position);
 
             // printf(" %s ", mode_str(breath_point->mode));
             // printf("%c",  breath_point->is_slope   ? 'S' : ' ');

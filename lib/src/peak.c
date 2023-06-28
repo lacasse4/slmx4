@@ -9,6 +9,7 @@ void erase_peak(peak_t* peak) {
     peak->precise_value = 0.0;
 };
 
+
 peak_t find_peak(float* signal, int num_samples, int start_index, int stop_index)
 {  
 	int   position;
@@ -70,11 +71,13 @@ peak_t find_peak_with_unit(float* signal, int num_samples, float from, float to,
 {
 	int start_index = roundf(from * samples_per_unit);
 	int stop_index  = roundf(to   * samples_per_unit);
-	return find_peak_precise(signal, num_samples, start_index, stop_index);
+	peak_t peak = find_peak_precise(signal, num_samples, start_index, stop_index);
+	peak.precise_position = peak.precise_position / samples_per_unit;
+	return peak;
 }
 
 
-/*  Obsolete 
+/*  Obsolete code 
 
 peak_t find_first_peak_above(float* signal, int num_samples, 
 	float frame_start, float frame_end, float from, float to, float above)

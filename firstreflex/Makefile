@@ -27,11 +27,11 @@ bin/showfreq5: src/showfreq5.cpp \
 bin/breath3: src/breath3.cpp \
 		src/breathFilter.c \
 		inc/breathFilter.h \
-		$(LSRC)/slmx4_vcom.cpp $(LSRC)/serialib.cpp $(LSRC)/zeroxing.c $(LSRC)/peak.c $(LSRC)/tinyosc.c \
-		$(LINC)/slmx4_vcom.h $(LINC)/serialib.h $(LINC)/zeroxing.h $(LINC)/peak.h $(LINC)/tinyosc.h
+		$(LSRC)/slmx4_vcom.cpp $(LSRC)/serialib.cpp $(LSRC)/peak.c $(LSRC)/tinyosc.c \
+		$(LINC)/slmx4_vcom.h $(LINC)/serialib.h $(LINC)/peak.h $(LINC)/tinyosc.h
 	g++ -g -Werror -o bin/breath3 -I inc -I $(LINC) src/breath3.cpp \
 		src/breathFilter.c \
-		$(LSRC)/slmx4_vcom.cpp $(LSRC)/serialib.cpp $(LSRC)/zeroxing.c $(LSRC)/peak.c $(LSRC)/tinyosc.c
+		$(LSRC)/slmx4_vcom.cpp $(LSRC)/serialib.cpp $(LSRC)/peak.c $(LSRC)/tinyosc.c
 
 bin/fft1: src/fft1.c 
 	gcc -g -Wall -o bin/fft1 src/fft1.c -lm -lfftw3f

@@ -7,7 +7,8 @@ all: 	bin/extract_breath \
 		bin/extract_breath2 \
 		bin/showfreq5 \
 		bin/breath3 \
-		bin/fft1
+		bin/fft1 \
+		bin/breath4
 
 bin/extract_breath: src/extract_breath.c
 	gcc -g -o bin/extract_breath src/extract_breath.c
@@ -35,6 +36,16 @@ bin/breath3: src/breath3.cpp \
 
 bin/fft1: src/fft1.c 
 	gcc -g -Wall -o bin/fft1 src/fft1.c -lm -lfftw3f
+
+bin/breath4: src/breath4.cpp \
+		src/breathFilter.c src/fftwrapper.c \
+		inc/breathFilter.h inc/fftwrapper.h \
+		$(LSRC)/slmx4_vcom.cpp $(LSRC)/serialib.cpp $(LSRC)/peak.c $(LSRC)/tinyosc.c \
+		$(LINC)/slmx4_vcom.h $(LINC)/serialib.h $(LINC)/peak.h $(LINC)/tinyosc.h
+	g++ -g -Werror -o bin/breath4 -I inc -I $(LINC) src/breath4.cpp \
+		src/breathFilter.c src/fftwrapper.c \
+		$(LSRC)/slmx4_vcom.cpp $(LSRC)/serialib.cpp $(LSRC)/peak.c $(LSRC)/tinyosc.c \
+		-lm -lfftw3f
 
 clean:
 	rm -rf bin

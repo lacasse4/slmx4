@@ -69,4 +69,5 @@ int main(int argc, char* argv[])
     }
  
     fft_release(fft_wrapper);
+    fft_cleanup();
 }

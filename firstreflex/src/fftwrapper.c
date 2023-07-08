@@ -47,6 +47,11 @@ void fft_release(fft_wrapper_t* fft_wrapper)
     free(fft_wrapper);
 }
 
+void fft_cleanup()
+{
+    fftwf_cleanup();
+}
+
 void fft_spectrum(fft_wrapper_t* fft_wrapper, float* signal, float* spectrum)
 {
     for (int i = 0; i < fft_wrapper->size; i++) {

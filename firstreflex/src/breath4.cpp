@@ -18,13 +18,18 @@
 
 #include "slmx4_vcom.h"
 #include "serialib.h"
-#include "breathFilter.h"
+// #include "breathFilter.h"
 #include "tinyosc.h"
 #include "peak.h"
+#include "fftwrapper.h"
+#include "buffer.h"
 
 #define MAX_FRAME_SIZE      188
-#define START_PEAK_SEARCH   0.45  // in meter (set empiricaly to clear initial radar impulsion)
-#define STOP_PEAK_SEARCH    2.00  // in meter
+#define START_FRAME_PEAK    0.45f  // in meter (set empiricaly to clear initial radar impulsion)
+#define STOP_FRAME_PEAK     2.00f  // in meter
+#define SAMPLING_FREQ       27.02f // in hertz       
+#define START_SPECTRUM_PEAK (SAMPLING_FREQ/BUFFER_SIZE)  // in hertz
+#define STOP_SPECTRUM_PEAK  0.5f   // in hertz
     
 #define FIFO_MODE 0666
 #define DATA_FILE_NAME "./DATA"
@@ -34,7 +39,6 @@ const char* SERIAL_PORT = "/dev/serial/by-id/usb-NXP_SEMICONDUCTORS_MCU_VIRTUAL_
 slmx4 sensor;
 timeOut timer;
 float frame[MAX_FRAME_SIZE*2];
-
 char  display[MAX_FRAME_SIZE+1];
 
 float previous_freq;
@@ -43,11 +47,15 @@ float sampling_rate;
 struct sockaddr_in server_addr;
 int   fd;
 
-breathFilter    _filter_br_mem;
-breathFilter*    filter_br;
-peak_t           peak;
+// breathFilter    _filter_br_mem;
+// breathFilter*    filter_br;
+peak_t          frame_peak;
+peak_t          spectrum_peak;
+fft_wrapper_t*  fft_wrapper;
+buffer_t        breath_signal;
+float           spectrum[BUFFER_SIZE];
 
-void  apply_breath_filter(float* out_signal, float in_signal, breathFilter* filter);
+// void  apply_breath_filter(float* out_signal, float in_signal, breathFilter* filter);
 
 void  display_slmx4_status(FILE* f);
 char* display_signal(char out[MAX_FRAME_SIZE], float in[MAX_FRAME_SIZE]);
@@ -98,13 +106,16 @@ int main(int argc, char* argv[])
 	// Initialise static memory
 	memset(frame, 0, MAX_FRAME_SIZE*2*sizeof(float));
 
+    fft_wrapper = fft_init(BUFFER_SIZE);
+    buffer_init(&breath_signal);
+
     previous_freq = 0.0;
 
 	// Use static memory for the various data structures
     // and initialize memory
 
-    filter_br = &_filter_br_mem;
-    breathFilter_init(filter_br);
+    // filter_br = &_filter_br_mem;
+    // breathFilter_init(filter_br);
 
 	// Check if the SLMX4 sensor is connected and available
 	fprintf(stderr, "Checking serial port: %s\n", SERIAL_PORT);
@@ -159,7 +170,8 @@ int main(int argc, char* argv[])
         clean_up(0);
     }
 
-    float samples_per_unit = sensor.get_num_samples() / sensor.get_frame_end();
+    float samples_per_meter = sensor.get_num_samples() / sensor.get_frame_end();
+    float samples_per_hertz = BUFFER_SIZE / SAMPLING_FREQ;
 
 	// Acquire data
 	fprintf(stderr, "Breath frequency detection in progress. Type CTRL_C to exit.\n");
@@ -169,13 +181,24 @@ int main(int argc, char* argv[])
 		sensor.get_frame_normalized(frame, POWER_IN_WATT);
 		sampling_rate = 1000.0 / timer.elapsedTime_ms();
 
-        peak = find_peak_with_unit(frame, sensor.get_num_samples(), START_PEAK_SEARCH, STOP_PEAK_SEARCH, samples_per_unit);
-
-        if (debug) {
-            if (peak.position == -1) fprintf(stderr, "E");
-            printf("%7.4f\n", peak.precise_position);
-
+        frame_peak = find_peak_with_unit(frame, sensor.get_num_samples(), START_FRAME_PEAK, STOP_FRAME_PEAK, samples_per_meter);
+        if (frame_peak.position != -1) {
+            printf("%7.4f", frame_peak.precise_position);
+            buffer_put(&breath_signal, frame_peak.precise_position);
+            if (buffer_is_valid(&breath_signal)) {
+                fft_spectrum(fft_wrapper, buffer_get(&breath_signal), spectrum);
+                spectrum_peak = find_peak_with_unit(spectrum, BUFFER_SIZE/2+1, START_SPECTRUM_PEAK, STOP_SPECTRUM_PEAK, samples_per_hertz);
+                printf("  %7.4f  %7.4f\n", spectrum_peak.precise_position, spectrum_peak.precise_value);
+            }
+            else {
+                printf("\n");                
+            }
         }
+        else {
+            buffer_init(&breath_signal);
+            printf("E\n");
+        }
+
     }
 
 	clean_up(0);
@@ -231,11 +254,11 @@ void launch_viewer()
 }
 
 // Apply a filter to the breath signal
-void apply_breath_filter(float* out_signal, float in_signal, breathFilter* filter)
-{
-    breathFilter_put(filter, in_signal);
-    *out_signal = breathFilter_get(filter);
-}
+// void apply_breath_filter(float* out_signal, float in_signal, breathFilter* filter)
+// {
+//     breathFilter_put(filter, in_signal);
+//     *out_signal = breathFilter_get(filter);
+// }
 
 
 void  swap(int* a, int* b)

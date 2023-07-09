@@ -34,7 +34,8 @@
 #define FIFO_MODE 0666
 #define DATA_FILE_NAME "./DATA"
 
-const char* SERIAL_PORT = "/dev/serial/by-id/usb-NXP_SEMICONDUCTORS_MCU_VIRTUAL_COM_DEMO-if00";
+// const char* SERIAL_PORT = "/dev/serial/by-id/usb-NXP_SEMICONDUCTORS_MCU_VIRTUAL_COM_DEMO-if00";
+const char* SERIAL_PORT = "/dev/ttyACM0";
 
 slmx4 sensor;
 timeOut timer;
@@ -176,6 +177,7 @@ int main(int argc, char* argv[])
 	// Acquire data
 	fprintf(stderr, "Breath frequency detection in progress. Type CTRL_C to exit.\n");
 
+    int error_counter = 0;
     while(1) {
     	timer.initTimer();
 		sensor.get_frame_normalized(frame, POWER_IN_WATT);
@@ -183,12 +185,13 @@ int main(int argc, char* argv[])
 
         frame_peak = find_peak_with_unit(frame, sensor.get_num_samples(), START_FRAME_PEAK, STOP_FRAME_PEAK, samples_per_meter);
         if (frame_peak.position != -1) {
+            error_counter = 0;
             printf("%7.4f", frame_peak.precise_position);
             buffer_put(&breath_signal, frame_peak.precise_position);
             if (buffer_is_valid(&breath_signal)) {
                 fft_spectrum(fft_wrapper, buffer_get(&breath_signal), spectrum);
                 spectrum_peak = find_peak_with_unit(spectrum, BUFFER_SIZE/2+1, START_SPECTRUM_PEAK, STOP_SPECTRUM_PEAK, samples_per_hertz);
-                printf("  %7.4f  %7.4f\n", spectrum_peak.precise_position, spectrum_peak.precise_value);
+                printf("  %7.4f  %7.4f\n", spectrum_peak.precise_position*60.0, spectrum_peak.precise_value);
             }
             else {
                 printf("\n");                
@@ -196,7 +199,7 @@ int main(int argc, char* argv[])
         }
         else {
             buffer_init(&breath_signal);
-            printf("E\n");
+            printf("E %d\n", ++error_counter);
         }
 
     }
@@ -238,6 +241,8 @@ void clean_up(int sig)
 	sensor.end();
     if (fd != 0) close(fd);
 	// unlink(DATA_FILE_NAME);
+    fft_release(fft_wrapper);
+    fft_cleanup();
 	exit(EXIT_SUCCESS);
 }
 

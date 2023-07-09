@@ -12,8 +12,9 @@ void buffer_init(buffer_t* b)
 void buffer_put(buffer_t* b, float input) 
 {
     b->buffer[b->next] = input;
-    b->next = b->next == BUFFER_SIZE ? 0 : b->next + 1;
-    b->counter = b->counter == BUFFER_SIZE ? BUFFER_SIZE : b->counter + 1;
+    b->next++;
+    if (b->next   == BUFFER_SIZE) b->next = 0;
+    if (b->counter < BUFFER_SIZE) b->counter++;
 }
 
 float* buffer_get(buffer_t* b) 

@@ -25,36 +25,48 @@
 #include "buffer.h"
 
 #define MAX_FRAME_SIZE      188
-#define START_FRAME_PEAK    0.45f  // in meter (set empiricaly to clear initial radar impulsion)
-#define STOP_FRAME_PEAK     2.00f  // in meter
-#define SAMPLING_FREQ       27.02f // in hertz       
-#define START_SPECTRUM_PEAK (SAMPLING_FREQ/BUFFER_SIZE)  // in hertz
-#define STOP_SPECTRUM_PEAK  0.5f   // in hertz
+#define NUM_PROCESSORS      3
+
+// Start and stop limits for first reflexion peak search within radar frame
+#define START_FRAME_PEAK    0.45f   // in meter (empiricaly set to avoid initial radar impulsion)
+#define STOP_FRAME_PEAK     2.00f   // in meter
+
+// Sampling rate first estimate (number of frames per second)
+#define SAMPLING_RATE       27.027f // in hertz  
+
+// Start and stop limits for peak seach within breath signal spectrum
+// For following definitions, see: https://www.healthline.com/health/normal-respiratory-rate
+//       "Normal respiratory rate in a healthy adult is about 12 to 20 breaths per minute".
+// The range was slightly extended due to peak detection algorithm requirements.
+#define START_SPECTRUM_PEAK (10.0f/60.0f)  // in hertz
+#define STOP_SPECTRUM_PEAK  (22.0f/60.0f)  // in hertz
     
 #define FIFO_MODE 0666
 #define DATA_FILE_NAME "./DATA"
-
-// const char* SERIAL_PORT = "/dev/serial/by-id/usb-NXP_SEMICONDUCTORS_MCU_VIRTUAL_COM_DEMO-if00";
-const char* SERIAL_PORT = "/dev/ttyACM0";
+#define SERIAL_PORT "/dev/ttyACM0"
 
 slmx4 sensor;
 timeOut timer;
-float frame[MAX_FRAME_SIZE*2];
-char  display[MAX_FRAME_SIZE+1];
-
-float previous_freq;
-unsigned long int times;
-float sampling_rate;
 struct sockaddr_in server_addr;
-int   fd;
 
 // breathFilter    _filter_br_mem;
 // breathFilter*    filter_br;
+// char            display[MAX_FRAME_SIZE+1];
+
+int             buffer_size[NUM_PROCESSORS] = {128, 256, 512};
+float           frame[MAX_FRAME_SIZE*2] = {0};
+float*          spectrum[NUM_PROCESSORS] = {0};
 peak_t          frame_peak;
-peak_t          spectrum_peak;
-fft_wrapper_t*  fft_wrapper;
-buffer_t        breath_signal;
-float           spectrum[BUFFER_SIZE];
+peak_t          spectrum_peak[NUM_PROCESSORS];
+fft_wrapper_t*  fft_wrapper[NUM_PROCESSORS] = {0};
+buffer_t*       breath_signal[NUM_PROCESSORS] = {0};
+
+float sampling_rate;
+float samples_per_meter;
+float samples_per_hertz[NUM_PROCESSORS];
+float previous_freq;
+int   fd = 0;
+unsigned long int elapsed_time_ms;
 
 // void  apply_breath_filter(float* out_signal, float in_signal, breathFilter* filter);
 
@@ -73,26 +85,24 @@ int main(int argc, char* argv[])
 {
     if (argc != 1 && argc != 3) {
         printf("Usage:\n");
-        printf("       breath3 <ip_address> <port>  (with MaxMSP)\n");
-        printf(" or    breath3                      (in debug mode)\n");
+        printf("       breath4 <ip_address> <port>  (with MaxMSP)\n");
+        printf(" or    breath4                      (in debug mode)\n");
         return 1;
     }
 
     int debug = argc == 1;
-    // int first = 1;
-    fd = 0;
 
     if (!debug) {
         struct in_addr addr_binary;
         if (inet_pton(AF_INET, argv[1], &addr_binary) == 0) {
             fprintf(stderr, "Error: invalid ip address\n");
-            return 1;
+            exit(1);
         };
 
         fd = socket(AF_INET, SOCK_DGRAM, 0);
         if (fd == -1) {
             fprintf(stderr, "Error: unable to open UDP connection\n");
-            return 1;
+            exit(1);
         }
 
         memset(&server_addr, 0, sizeof(server_addr));
@@ -101,24 +111,7 @@ int main(int argc, char* argv[])
         server_addr.sin_port = htons(atoi(argv[2]));
     }
 
-	// Execute clean_up on CTRL_C
-	signal(SIGINT, clean_up);
-
-	// Initialise static memory
-	memset(frame, 0, MAX_FRAME_SIZE*2*sizeof(float));
-
-    fft_wrapper = fft_init(BUFFER_SIZE);
-    buffer_init(&breath_signal);
-
-    previous_freq = 0.0;
-
-	// Use static memory for the various data structures
-    // and initialize memory
-
-    // filter_br = &_filter_br_mem;
-    // breathFilter_init(filter_br);
-
-	// Check if the SLMX4 sensor is connected and available
+    	// Check if the SLMX4 sensor is connected and available
 	fprintf(stderr, "Checking serial port: %s\n", SERIAL_PORT);
 	if (access(SERIAL_PORT, F_OK) < 0) {
 		fprintf(stderr, "ERROR: serial port NOT available: %s\n", SERIAL_PORT);		
@@ -130,6 +123,10 @@ int main(int argc, char* argv[])
 	if (sensor.begin(SERIAL_PORT) == EXIT_FAILURE) {
 		exit(EXIT_FAILURE);
 	}
+
+	// from now on, clean_up(0) is the proper way to exit this program
+    // clean_up() will be executed if CTRL_C is entered
+	signal(SIGINT, clean_up);
 
 	// Set sensor operating mode, that is:
 	//   - 32 iterations
@@ -171,37 +168,73 @@ int main(int argc, char* argv[])
         clean_up(0);
     }
 
-    float samples_per_meter = sensor.get_num_samples() / sensor.get_frame_end();
-    float samples_per_hertz = BUFFER_SIZE / SAMPLING_FREQ;
+    // Allocate data structure and initialize memory
+    for (int i = 0; i < NUM_PROCESSORS; i++) {
+        breath_signal[i] = buffer_init(buffer_size[i]);
+        if (breath_signal[i] == NULL) {
+            clean_up(0);
+        }
+        spectrum[i] = (float*)malloc(sizeof(float)*buffer_size[i]);
+        if (spectrum[i] == NULL) {
+            clean_up(0);
+        }
+        fft_wrapper[i] = fft_init(buffer_size[i]);
+        if (fft_wrapper[i] == NULL) {
+            clean_up(0);
+        }
+        samples_per_hertz[i] = buffer_size[i] / SAMPLING_RATE;
+    }
+
+    previous_freq = 0.0;
+    samples_per_meter = sensor.get_num_samples() / sensor.get_frame_end();
 
 	// Acquire data
 	fprintf(stderr, "Breath frequency detection in progress. Type CTRL_C to exit.\n");
 
-    int error_counter = 0;
+    sampling_rate = SAMPLING_RATE;
+    int xxx = 0;
     while(1) {
     	timer.initTimer();
 		sensor.get_frame_normalized(frame, POWER_IN_WATT);
-		sampling_rate = 1000.0 / timer.elapsedTime_ms();
-
+    
         frame_peak = find_peak_with_unit(frame, sensor.get_num_samples(), START_FRAME_PEAK, STOP_FRAME_PEAK, samples_per_meter);
-        if (frame_peak.position != -1) {
-            error_counter = 0;
-            printf("%7.4f", frame_peak.precise_position);
-            buffer_put(&breath_signal, frame_peak.precise_position);
-            if (buffer_is_valid(&breath_signal)) {
-                fft_spectrum(fft_wrapper, buffer_get(&breath_signal), spectrum);
-                spectrum_peak = find_peak_with_unit(spectrum, BUFFER_SIZE/2+1, START_SPECTRUM_PEAK, STOP_SPECTRUM_PEAK, samples_per_hertz);
-                printf("  %7.4f  %7.4f\n", spectrum_peak.precise_position*60.0, spectrum_peak.precise_value);
-            }
-            else {
-                printf("\n");                
-            }
+        for (int i = 0; i < NUM_PROCESSORS; i++) {
+            buffer_put_sample(breath_signal[i], frame_peak.precise_position);
+            fft_spectrum(fft_wrapper[i], buffer_get_buffer(breath_signal[i]), spectrum[i]);
+            spectrum_peak[i] = find_peak_with_unit(spectrum[i], buffer_size[i]/2+1, START_SPECTRUM_PEAK, STOP_SPECTRUM_PEAK, samples_per_hertz[i]);
         }
-        else {
-            buffer_init(&breath_signal);
-            printf("E %d\n", ++error_counter);
+        if (frame_peak.position == -1) {
+            for(int i = 0; i < NUM_PROCESSORS; i++) {
+                buffer_reset(breath_signal[i]);
+            }
         }
 
+    	sampling_rate = 1000.0 / timer.elapsedTime_ms();
+
+        printf("%7.4f ", sampling_rate);
+        printf("%2d ",   frame_peak.position); 
+        printf("%7.4f | ", frame_peak.precise_position);
+        printf("%d ",    buffer_is_valid(breath_signal[0]));
+        printf("%3d ",   buffer_get_counter(breath_signal[0]));
+        printf("%2d ",   spectrum_peak[0].position);
+        printf("%7.4f ", spectrum_peak[0].precise_position*60.0);
+        printf("%7.4f | ", spectrum_peak[0].precise_value);
+        printf("%d ",    buffer_is_valid(breath_signal[1]));
+        printf("%3d ",   buffer_get_counter(breath_signal[1]));
+        printf("%2d ",   spectrum_peak[1].position);
+        printf("%7.4f ", spectrum_peak[1].precise_position*60.0);
+        printf("%7.4f | ", spectrum_peak[1].precise_value);
+        printf("%d ",    buffer_is_valid(breath_signal[2]));
+        printf("%3d ",   buffer_get_counter(breath_signal[2]));
+        printf("%2d ",   spectrum_peak[2].position);
+        printf("%7.4f ", spectrum_peak[2].precise_position*60.0);
+        printf("%7.4f",  spectrum_peak[2].precise_value);
+        printf("\n");
+        sampling_rate = 1000.0f / elapsed_time_ms;
+		elapsed_time_ms = timer.elapsedTime_ms();
+        if (++xxx == 1000) {
+            fprintf(stderr, "stop\n");
+        }
     }
 
 	clean_up(0);
@@ -237,13 +270,26 @@ void display_slmx4_status(FILE *f)
 // Must be executed before exit in order to leave the sensor in a stable mode
 void clean_up(int sig)
 {
-	fprintf(stderr, "\nClose sensor\n");
+	fprintf(stderr, "\nTerminated normaly\n");
 	sensor.end();
-    if (fd != 0) close(fd);
+    if (fd != 0) {
+        close(fd);
+    }
+
 	// unlink(DATA_FILE_NAME);
-    fft_release(fft_wrapper);
+
+    for (int i = 0; i < NUM_PROCESSORS; i++) {
+        buffer_release(breath_signal[i]);
+        free(spectrum[i]);
+        fft_release(fft_wrapper[i]);
+    } 
+
     fft_cleanup();
-	exit(EXIT_SUCCESS);
+
+    if (sig == SIGINT) {
+    	exit(EXIT_SUCCESS);
+    }
+    exit(EXIT_FAILURE);
 }
 
 // Lauch a viewer in a separate process

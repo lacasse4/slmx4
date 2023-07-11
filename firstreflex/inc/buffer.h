@@ -2,20 +2,18 @@
 #define BUFFER_H_
 
 /*
-Implementation of a circular buffer.
+Implementation of a buffer.
 */
 
-#define BUFFER_SIZE 512
+typedef struct buffer buffer_t;
 
-typedef struct {
-    float buffer[BUFFER_SIZE];
-    int   next;
-    int   counter;
-} buffer_t;
-
-void   buffer_init(buffer_t* b);
-void   buffer_put(buffer_t* b, float input);
-float* buffer_get(buffer_t* b);
+buffer_t* buffer_init(int size);
+void   buffer_reset(buffer_t* b);
+void   buffer_put_sample(buffer_t* b, float input);
+float* buffer_get_buffer(buffer_t* b);
 int    buffer_is_valid(buffer_t* b);
+int    buffer_get_size(buffer_t* b);
+int    buffer_get_counter(buffer_t* b);
+void   buffer_release(buffer_t* b);
 
 #endif

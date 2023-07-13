@@ -12,7 +12,7 @@
 
 #define MAX_FRAME_SIZE 1535
 
-const char* SERIAL_PORT = "/dev/serial/by-id/usb-NXP_SEMICONDUCTORS_MCU_VIRTUAL_COM_DEMO-if00";
+const char* SERIAL_PORT = "/dev/ttyACM0";
 
 slmx4 sensor;
 float sensor_data[MAX_FRAME_SIZE];
@@ -39,8 +39,8 @@ int main(int argc, char* argv[])
 	}
 
 
-    sensor.set_value_by_name("VarSetValue_ByName(iterations,32)");
-    sensor.set_value_by_name("VarSetValue_ByName(pps,64)");
+    sensor.set_value_by_name("VarSetValue_ByName(iterations,64)");
+    sensor.set_value_by_name("VarSetValue_ByName(pps,16)");
     sensor.set_value_by_name("VarSetValue_ByName(dac_min,896)");
     sensor.set_value_by_name("VarSetValue_ByName(dac_max,1152)");
     sensor.set_value_by_name("VarSetValue_ByName(ddc_en,1)");

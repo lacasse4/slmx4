@@ -32,7 +32,8 @@
 #define STOP_FRAME_PEAK     2.00f   // in meter
 
 // Sampling rate first estimate (number of frames per second)
-#define SAMPLING_RATE       27.027f // in hertz  
+#define TARGET_SAMPLING_RATE    50.00f // in hertz  
+#define TARGET_ELAPSED_TIME_MS  (1000f/TARGET_SAMPLING_RATE) // in millisec.
 
 // Start and stop limits for peak seach within breath signal spectrum
 // For following definitions, see: https://www.healthline.com/health/normal-respiratory-rate
@@ -53,7 +54,12 @@ struct sockaddr_in server_addr;
 // breathFilter*    filter_br;
 // char            display[MAX_FRAME_SIZE+1];
 
-int             buffer_size[NUM_PROCESSORS] = {128, 256, 512};
+// buffer_size is set according to the sampling rate and
+// the lowest respiration rate we want to detect.
+// The lowest respiration rate = 10 RPM -> T = 6 sec.
+// The sampling rate is 50 Hz (iterations = 64, pps = 16) 
+// number_of_samples = 2 * 6 sec * 50 Hz = 600 samples.
+int             buffer_size[NUM_PROCESSORS] = {600, 1200, 2400};
 float           frame[MAX_FRAME_SIZE*2] = {0};
 float*          spectrum[NUM_PROCESSORS] = {0};
 peak_t          frame_peak;
@@ -67,6 +73,7 @@ float samples_per_hertz[NUM_PROCESSORS];
 float previous_freq;
 int   fd = 0;
 unsigned long int elapsed_time_ms;
+unsigned long int target_elapsed_time_ms;
 
 // void  apply_breath_filter(float* out_signal, float in_signal, breathFilter* filter);
 
@@ -129,8 +136,8 @@ int main(int argc, char* argv[])
 	signal(SIGINT, clean_up);
 
 	// Set sensor operating mode, that is:
-	//   - 32 iterations
-	//   - 64 pulses per step (pps)
+	//   - 64 iterations
+	//   - 16 pulses per step (pps)
 	//   - dac minimum value 896   (1024 - 128)
 	//   - dac maximum value 1152  (1024 + 128)
 	//   - downconversion and decimation enabled (ddc = 1)
@@ -139,10 +146,9 @@ int main(int argc, char* argv[])
 	// but increase the data acquisition time between frames.
 	// By increasing dac_min and reducing dac_max, the data acquisition
 	// time is reduced. This application does not require a larger range.
-	// With this setup, the acquition rate is about 1 frame each 37 ms,
-	// or 27.0 frames per second. 
-    // The frameFilter.c is designed for this rate.
-	//
+	// With this setup, the acquition rate is about 1 frame each 20 ms,
+	// or 50.0 frames per second. 
+ 	//
 	// Setting ddc to 1 enable the downconverion and decimation algorithm 
 	// available on the SLMX4 sensor. It demodulates the radar signal 
 	// from its carrier frequency. See:
@@ -151,8 +157,8 @@ int main(int argc, char* argv[])
 	// Each complex data point is converted to its modulus in get_frame_normalized().  
     // Each data point correspond to a distance of 0.0525 m (5.25 cm).
 
-    sensor.set_value_by_name("VarSetValue_ByName(iterations,32)");
-    sensor.set_value_by_name("VarSetValue_ByName(pps,64)");
+    sensor.set_value_by_name("VarSetValue_ByName(iterations,64)");
+    sensor.set_value_by_name("VarSetValue_ByName(pps,16)");
     sensor.set_value_by_name("VarSetValue_ByName(dac_min,896)");
     sensor.set_value_by_name("VarSetValue_ByName(dac_max,1152)");
     sensor.set_value_by_name("VarSetValue_ByName(ddc_en,1)");
@@ -182,7 +188,7 @@ int main(int argc, char* argv[])
         if (fft_wrapper[i] == NULL) {
             clean_up(0);
         }
-        samples_per_hertz[i] = buffer_size[i] / SAMPLING_RATE;
+        samples_per_hertz[i] = buffer_size[i] / TARGET_SAMPLING_RATE;
     }
 
     previous_freq = 0.0;
@@ -191,8 +197,6 @@ int main(int argc, char* argv[])
 	// Acquire data
 	fprintf(stderr, "Breath frequency detection in progress. Type CTRL_C to exit.\n");
 
-    sampling_rate = SAMPLING_RATE;
-    int xxx = 0;
     while(1) {
     	timer.initTimer();
 		sensor.get_frame_normalized(frame, POWER_IN_WATT);
@@ -201,6 +205,7 @@ int main(int argc, char* argv[])
         for (int i = 0; i < NUM_PROCESSORS; i++) {
             buffer_put_sample(breath_signal[i], frame_peak.precise_position);
             fft_spectrum(fft_wrapper[i], buffer_get_buffer(breath_signal[i]), spectrum[i]);
+            spectrum[i][0] = 0.0; // remove DC component
             spectrum_peak[i] = find_peak_with_unit(spectrum[i], buffer_size[i]/2+1, START_SPECTRUM_PEAK, STOP_SPECTRUM_PEAK, samples_per_hertz[i]);
         }
         if (frame_peak.position == -1) {
@@ -209,7 +214,8 @@ int main(int argc, char* argv[])
             }
         }
 
-    	sampling_rate = 1000.0 / timer.elapsedTime_ms();
+   		elapsed_time_ms = timer.elapsedTime_ms();
+        sampling_rate = 1000.0f / elapsed_time_ms;
 
         printf("%7.4f ", sampling_rate);
         printf("%2d ",   frame_peak.position); 
@@ -230,11 +236,9 @@ int main(int argc, char* argv[])
         printf("%7.4f ", spectrum_peak[2].precise_position*60.0);
         printf("%7.4f",  spectrum_peak[2].precise_value);
         printf("\n");
-        sampling_rate = 1000.0f / elapsed_time_ms;
-		elapsed_time_ms = timer.elapsedTime_ms();
-        if (++xxx == 1000) {
-            fprintf(stderr, "stop\n");
-        }
+        // if (++xxx == 1000) {
+        //     fprintf(stderr, "stop\n");
+        // }
     }
 
 	clean_up(0);

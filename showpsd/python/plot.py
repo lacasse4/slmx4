@@ -7,7 +7,7 @@ def read_data(filename):
     fd = open(filename, "r") 
 
     n = int(fd.readline())
-    y = [];
+    y = []
     count = 0
 
     while count < n:
@@ -21,22 +21,22 @@ if len(sys.argv) != 2:
     print("usage: plotsinglebreath.py file")
     quit()
 
-y, n = read_data(sys.argv[1])
-print(n)
+while True:
+    y, n = read_data(sys.argv[1])
 
-figure, axes = plt.subplots(figsize=(16,8))
-figure.show()
+    figure, axes = plt.subplots(figsize=(16,8))
+    figure.show()
         
-axes.clear()
-axes.set(title="Power spectrum density", xlabel="n=%s" % n)
-axes.set_xlabel("Time in 141 ms increment")
-axes.set_ylabel("PSD in db");
-axes.set_autoscale_on(False)
-axes.set_ylim(bottom=-0.2, top=0.2)
-axes.set_xlim(left=0, right=n)
-x = [a for a in range(n)]
-axes.plot(x, y, 'b-')
-plt.show()
+    axes.clear()
+    axes.set(title="Power spectrum density", xlabel="n=%s" % n)
+    axes.set_xlabel("Time in 141 ms increment")
+    axes.set_ylabel("PSD in watt");
+    axes.set_autoscale_on(False)
+    axes.set_ylim(bottom=0.0, top=20)
+    axes.set_xlim(left=0, right=n)
+    x = [a for a in range(n)]
+    axes.plot(x, y, 'b-')
+    plt.show()
 
 plt.close(figure)
 

@@ -9,7 +9,7 @@
 
 #include <time.h>
 
-#define N 512
+#define N 600
 #define MAX_FILE_LENGTH 2048
 
 int   length;
@@ -63,14 +63,14 @@ int main(int argc, char* argv[])
         in[i] = signal[i+offset] + I * 0.0;
     }
 
-    clock_t start, stop;
-    start = clock();
+//    clock_t start, stop;
+//    start = clock();
 
     fftwf_execute(p);
 
-    stop = clock();
+//    stop = clock();
 
-    fprintf(stderr, "Time = %f s\n", ((float)(stop-start))/(CLOCKS_PER_SEC));
+//    fprintf(stderr, "Time = %f s\n", ((float)(stop-start))/(CLOCKS_PER_SEC));
 
     for (int i = 0; i < N/2+1; i++) {
         printf("%7.4f\n", cabsf(out[i]));

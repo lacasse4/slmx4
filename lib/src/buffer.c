@@ -67,3 +67,23 @@ void buffer_release(buffer_t* b)
     free(b->buffer);
     free(b);
 }
+
+// for debugging
+#include <stdio.h>
+int buffer_dump(buffer_t* b, const char* filename)
+{
+    printf("next = %d\n", b->next);
+
+	FILE* fd = fopen(filename, "w");
+	if(fd == NULL) {
+		fprintf(stderr,"ERROR: Can not open %s for writing\n", filename);
+		return 1;
+	}	
+
+	for (int i = 0; i < b->size; i++) {
+		fprintf(fd, "%7.4f\n", b->buffer[i]);
+	}
+
+	fclose(fd);
+	return 0;
+}

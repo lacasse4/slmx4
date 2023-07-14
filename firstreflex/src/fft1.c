@@ -10,7 +10,7 @@
 #include <time.h>
 
 #define N 600
-#define MAX_FILE_LENGTH 2048
+#define MAX_FILE_LENGTH 20480
 
 int   length;
 int   offset = 0;

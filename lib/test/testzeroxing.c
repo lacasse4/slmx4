@@ -12,7 +12,7 @@
 int main(int argc, char* argv[])
 {
     int num_frames;
-     float frame[NUM_FRAMES];
+    float frame[NUM_FRAMES];
     zeroxing_t _zeroxing_mem;
     zeroxing_t* zeroxing; 
     float frequency = 0.0;

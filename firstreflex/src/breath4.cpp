@@ -25,7 +25,7 @@
 #include "timer_us.h"
 
 #define MAX_FRAME_SIZE      188
-#define NUM_PROCESSORS      3
+#define NUM_PROCESSORS      1
 
 // Start and stop limits for first reflexion peak search within radar frame
 #define START_FRAME_PEAK    0.45f   // in meter (empiricaly set to avoid initial radar impulsion)
@@ -55,7 +55,8 @@ struct sockaddr_in server_addr;
 // The lowest respiration rate = 10 RPM -> T = 6 sec.
 // The sampling rate is 50 Hz (iterations = 64, pps = 16) 
 // number_of_samples = 2 * 6 sec * 50 Hz = 600 samples.
-int             buffer_size[NUM_PROCESSORS] = {600, 1200, 2400};
+int             buffer_size[NUM_PROCESSORS] = {600};
+// int             buffer_size[NUM_PROCESSORS] = {600, 1200, 2400};
 float           frame[MAX_FRAME_SIZE*2] = {0};
 float*          spectrum[NUM_PROCESSORS] = {0};
 peak_t          frame_peak;
@@ -77,6 +78,7 @@ void  launch_viewer();
 void  swap(int* a, int* b);
 void  send_frequency_to_MaxMSP(struct sockaddr_in* server, float frequency);
 void  send_valid_to_MaxMSP(struct sockaddr_in* server, int valid);
+int write_signal(const char* filename, float* signal, int n);
 
 
 int main(int argc, char* argv[])
@@ -192,12 +194,13 @@ int main(int argc, char* argv[])
         start_time = timer_us_init();
 		sensor.get_frame_normalized(frame, POWER_IN_WATT);
     
-        frame_peak = find_first_peak_with_unit(frame, sensor.get_num_samples(), START_FRAME_PEAK, STOP_FRAME_PEAK, samples_per_meter);
+        frame_peak = find_second_peak_with_unit(frame, sensor.get_num_samples(), START_FRAME_PEAK, STOP_FRAME_PEAK, samples_per_meter);
         for (int i = 0; i < NUM_PROCESSORS; i++) {
-            buffer_put_sample(breath_signal[i], frame_peak.precise_position);
+            buffer_put_sample(breath_signal[i], frame_peak.scaled_position);
             fft_spectrum(fft_wrapper[i], buffer_get_buffer(breath_signal[i]), spectrum[i]);
             spectrum[i][0] = 0.0; // remove DC component
             spectrum_peak[i] = find_peak_with_unit(spectrum[i], buffer_size[i]/2+1, START_SPECTRUM_PEAK, STOP_SPECTRUM_PEAK, samples_per_hertz[i]);
+
         }
         if (frame_peak.position == -1) {
             for(int i = 0; i < NUM_PROCESSORS; i++) {
@@ -210,23 +213,35 @@ int main(int argc, char* argv[])
 
         printf("%7.4f ", sampling_rate);
         printf("%2d ",   frame_peak.position); 
-        printf("%7.4f | ", frame_peak.precise_position);
+        printf("%7.4f ", frame_peak.precise_position);
+        printf("%7.4f | ", frame_peak.scaled_position);
         printf("%d ",    buffer_is_valid(breath_signal[0]));
         printf("%3d ",   buffer_get_counter(breath_signal[0]));
         printf("%2d ",   spectrum_peak[0].position);
-        printf("%7.4f ", spectrum_peak[0].precise_position*60.0);
-        printf("%7.4f | ", spectrum_peak[0].precise_value);
-        printf("%d ",    buffer_is_valid(breath_signal[1]));
-        printf("%3d ",   buffer_get_counter(breath_signal[1]));
-        printf("%2d ",   spectrum_peak[1].position);
-        printf("%7.4f ", spectrum_peak[1].precise_position*60.0);
-        printf("%7.4f | ", spectrum_peak[1].precise_value);
-        printf("%d ",    buffer_is_valid(breath_signal[2]));
-        printf("%3d ",   buffer_get_counter(breath_signal[2]));
-        printf("%2d ",   spectrum_peak[2].position);
-        printf("%7.4f ", spectrum_peak[2].precise_position*60.0);
-        printf("%7.4f",  spectrum_peak[2].precise_value);
+        printf("%7.4f ", spectrum_peak[0].precise_position);
+        printf("%7.4f ", spectrum_peak[0].scaled_position*60.0);
+        printf("%7.4f ", spectrum_peak[0].precise_value);
+        // printf("%d ",    buffer_is_valid(breath_signal[1]));
+        // printf("%3d ",   buffer_get_counter(breath_signal[1]));
+        // printf("%2d ",   spectrum_peak[1].position);
+        // printf("%7.4f ", spectrum_peak[1].precise_position*60.0);
+        // printf("%7.4f | ", spectrum_peak[1].precise_value);
+        // printf("%d ",    buffer_is_valid(breath_signal[2]));
+        // printf("%3d ",   buffer_get_counter(breath_signal[2]));
+        // printf("%2d ",   spectrum_peak[2].position);
+        // printf("%7.4f ", spectrum_peak[2].precise_position*60.0);
+        // printf("%7.4f",  spectrum_peak[2].precise_value);
         printf("\n");
+
+            // if (buffer_is_valid(breath_signal[0]) && spectrum_peak[0].position == -1) {
+            //     buffer_dump(breath_signal[0], "SIGNAL");
+            //     write_signal("SPECTRUM", spectrum[0], buffer_size[0]/2+1);
+            //     clean_up(0);
+            // }
+            if (frame_peak.position == -1) {
+                write_signal("FRAME", frame, MAX_FRAME_SIZE);
+                clean_up(0);
+            }
     }
 
 	clean_up(0);
@@ -262,7 +277,7 @@ void display_slmx4_status(FILE *f)
 // Must be executed before exit in order to leave the sensor in a stable mode
 void clean_up(int sig)
 {
-	fprintf(stderr, "\nTerminated normaly\n");
+	fprintf(stderr, "\nTerminated normally\n");
 	sensor.end();
     if (fd != 0) {
         close(fd);
@@ -358,3 +373,18 @@ void send_valid_to_MaxMSP(struct sockaddr_in* server, int valid) {
     sendto(fd, buffer, len, MSG_CONFIRM, (const struct sockaddr *) server, sizeof(sockaddr_in));
 }
 
+int write_signal(const char* filename, float* signal, int n)
+{
+	FILE* fd = fopen(filename, "w");
+	if(fd == NULL) {
+		fprintf(stderr,"ERROR: Can not open %s for writing\n", filename);
+		return 1;
+	}	
+
+	for (int i = 0; i < n; i++) {
+		fprintf(fd, "%7.4f\n", signal[i]);
+	}
+
+	fclose(fd);
+	return 0;
+}

@@ -45,12 +45,12 @@ bin/fft1: src/fft1.c
 bin/fft2: src/fft2.c bin/fftwrapper.o 
 	gcc -g -Wall -o bin/fft2 -I inc src/fft2.c bin/fftwrapper.o -lm -lfftw3f
 
-bin/breath4: src/breath4.cpp src/buffer.c inc/buffer.h bin/fftwrapper.o \
-		$(LSRC)/slmx4_vcom.cpp $(LSRC)/serialib.cpp $(LSRC)/peak.c $(LSRC)/tinyosc.c \
-		$(LINC)/slmx4_vcom.h $(LINC)/serialib.h $(LINC)/peak.h $(LINC)/tinyosc.h
+bin/breath4: src/breath4.cpp bin/fftwrapper.o bin/tinyosc.o \
+		$(LSRC)/slmx4_vcom.cpp $(LSRC)/serialib.cpp $(LSRC)/peak.c $(LSRC)/timer_us.c $(LSRC)/buffer.c \
+		$(LINC)/slmx4_vcom.h $(LINC)/serialib.h $(LINC)/peak.h $(LINC)/timer_us.h $(LINC)/buffer.h
 	g++ -g -Wall -o bin/breath4 -I inc -I $(LINC) src/breath4.cpp \
-		src/buffer.c bin/fftwrapper.o bin/tinyosc.o \
-		$(LSRC)/slmx4_vcom.cpp $(LSRC)/serialib.cpp $(LSRC)/peak.c \
+		bin/fftwrapper.o bin/tinyosc.o \
+		$(LSRC)/slmx4_vcom.cpp $(LSRC)/serialib.cpp $(LSRC)/peak.c $(LSRC)/timer_us.c $(LSRC)/buffer.c \
 		-lm -lfftw3f
 
 clean:

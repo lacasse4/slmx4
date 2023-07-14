@@ -11,18 +11,18 @@
 #include <signal.h>
 #include <unistd.h>
 #include <sys/types.h>
-#include <sys/stat.h>
+// #include <sys/stat.h>
 #include <arpa/inet.h>
-#include <sys/select.h>
+#include <sys/time.h>
 
 
 #include "slmx4_vcom.h"
 #include "serialib.h"
-// #include "breathFilter.h"
 #include "tinyosc.h"
 #include "peak.h"
 #include "fftwrapper.h"
 #include "buffer.h"
+#include "timer_us.h"
 
 #define MAX_FRAME_SIZE      188
 #define NUM_PROCESSORS      3
@@ -33,7 +33,7 @@
 
 // Sampling rate first estimate (number of frames per second)
 #define TARGET_SAMPLING_RATE    50.00f // in hertz  
-#define TARGET_ELAPSED_TIME_MS  (1000f/TARGET_SAMPLING_RATE) // in millisec.
+#define TARGET_ELAPSED_TIME_US  (1000000f/TARGET_SAMPLING_RATE) // in microsec.
 
 // Start and stop limits for peak seach within breath signal spectrum
 // For following definitions, see: https://www.healthline.com/health/normal-respiratory-rate
@@ -46,13 +46,9 @@
 #define DATA_FILE_NAME "./DATA"
 #define SERIAL_PORT "/dev/ttyACM0"
 
+int   fd = 0;
 slmx4 sensor;
-timeOut timer;
 struct sockaddr_in server_addr;
-
-// breathFilter    _filter_br_mem;
-// breathFilter*    filter_br;
-// char            display[MAX_FRAME_SIZE+1];
 
 // buffer_size is set according to the sampling rate and
 // the lowest respiration rate we want to detect.
@@ -71,21 +67,16 @@ float sampling_rate;
 float samples_per_meter;
 float samples_per_hertz[NUM_PROCESSORS];
 float previous_freq;
-int   fd = 0;
-unsigned long int elapsed_time_ms;
-unsigned long int target_elapsed_time_ms;
-
-// void  apply_breath_filter(float* out_signal, float in_signal, breathFilter* filter);
+unsigned long int elapsed_time_us;
+struct timeval start_time;
 
 void  display_slmx4_status(FILE* f);
 char* display_signal(char out[MAX_FRAME_SIZE], float in[MAX_FRAME_SIZE]);
-
 void  clean_up(int sig);
 void  launch_viewer();
 void  swap(int* a, int* b);
-
-void send_frequency_to_MaxMSP(struct sockaddr_in* server, float frequency);
-void send_valid_to_MaxMSP(struct sockaddr_in* server, int valid);
+void  send_frequency_to_MaxMSP(struct sockaddr_in* server, float frequency);
+void  send_valid_to_MaxMSP(struct sockaddr_in* server, int valid);
 
 
 int main(int argc, char* argv[])
@@ -198,10 +189,10 @@ int main(int argc, char* argv[])
 	fprintf(stderr, "Breath frequency detection in progress. Type CTRL_C to exit.\n");
 
     while(1) {
-    	timer.initTimer();
+        start_time = timer_us_init();
 		sensor.get_frame_normalized(frame, POWER_IN_WATT);
     
-        frame_peak = find_peak_with_unit(frame, sensor.get_num_samples(), START_FRAME_PEAK, STOP_FRAME_PEAK, samples_per_meter);
+        frame_peak = find_first_peak_with_unit(frame, sensor.get_num_samples(), START_FRAME_PEAK, STOP_FRAME_PEAK, samples_per_meter);
         for (int i = 0; i < NUM_PROCESSORS; i++) {
             buffer_put_sample(breath_signal[i], frame_peak.precise_position);
             fft_spectrum(fft_wrapper[i], buffer_get_buffer(breath_signal[i]), spectrum[i]);
@@ -214,8 +205,8 @@ int main(int argc, char* argv[])
             }
         }
 
-   		elapsed_time_ms = timer.elapsedTime_ms();
-        sampling_rate = 1000.0f / elapsed_time_ms;
+   		elapsed_time_us = timer_us_elapsed(start_time);
+        sampling_rate = 1000000.0f / elapsed_time_us;
 
         printf("%7.4f ", sampling_rate);
         printf("%2d ",   frame_peak.position); 
@@ -236,9 +227,6 @@ int main(int argc, char* argv[])
         printf("%7.4f ", spectrum_peak[2].precise_position*60.0);
         printf("%7.4f",  spectrum_peak[2].precise_value);
         printf("\n");
-        // if (++xxx == 1000) {
-        //     fprintf(stderr, "stop\n");
-        // }
     }
 
 	clean_up(0);

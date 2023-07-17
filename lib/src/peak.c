@@ -81,41 +81,23 @@ peak_t find_peak_with_unit(float* signal, int num_samples, float from, float to,
 
 peak_t find_first_peak(float* signal, int num_samples, int start_index, int stop_index)
 {  
-	int   position;
-	int   is_max; 
-	float value;
-	peak_t not_found;
 	peak_t peak;
 
-	// to be returned if a peak is not found
-	erase_peak(&not_found);
+	// peak is reset. peak.position == -1 means no peak was found.
+	erase_peak(&peak);
 
 	// check input parameters
-	if (start_index < 0) return not_found;
-	if (stop_index >= num_samples-1) return not_found;
+	if (start_index < 0) return peak;
+	if (stop_index >= num_samples-1) return peak;
 
-	// find first peak in specified range
-	position = start_index;
-	value = signal[start_index];
+	// search for the first peak in specified range
 	for (int i = start_index+1; i < stop_index; i++) {
-		if (value > signal[i]) break;
-		value = signal[i]; 
-		position = i;
+		if (signal[i-1] < signal[i] && signal[i+1] < signal[i]) {
+			peak.position = i;
+			peak.value = signal[i];
+			break;
+		}
 	}
-
-	// a peak can not be at a boundary
-	if (position == start_index) return not_found;
-	if (position == stop_index) return not_found;
-
-	// value at position must be surrounded by lower values
-	is_max = value > signal[position-1] &&
-		     value > signal[position+1];
-	if (!is_max) return not_found;
-
-	// return result
-	erase_peak(&peak);
-	peak.position = position;
-	peak.value = value;
 
   	return peak;
 }
@@ -138,66 +120,30 @@ peak_t find_first_peak_with_unit(float* signal, int num_samples,
 	peak_t peak = find_first_peak_precise(signal, num_samples, start_index, stop_index);
 	peak.scaled_position = peak.precise_position / samples_per_unit;
 	return peak;
- 
 }
 
 peak_t find_second_peak(float* signal, int num_samples, int start_index, int stop_index)
 {  
-	int   position_first;
-	int   position_second;
-	int   is_max;
-	float value;
-	peak_t not_found;
-	peak_t peak;
+	peak_t peak1;
+	peak_t peak2;
 
-	// to be returned if a peak is not found
-	erase_peak(&not_found);
+	// peak2 is reset. peak2.position == -1 means no peak was found.
+	erase_peak(&peak2);
 
-	// check input parameters
-	if (start_index < 0) return not_found;
-	if (stop_index >= num_samples-1) return not_found;
+	// find the first peak;
+	peak1 = find_first_peak(signal, num_samples, start_index, stop_index);
+	if (peak1.position == -1) return peak2;
 
-	// find first peak in specified range
-	position_first = start_index;
-	value = signal[start_index];
-	for (int i = start_index+1; i < stop_index; i++) {
-		if (value > signal[i]) break;
-		value = signal[i]; 
-		position_first = i;
+	// search for the second peak in specified range
+	for (int i = peak1.position+1; i < stop_index; i++) {
+		if (signal[i-1] < signal[i] && signal[i+1] < signal[i]) {
+			peak2.position = i;
+			peak2.value = signal[i];
+			break;
+		}
 	}
 
-	// a peak can not be at a boundary
-	if (position_first == start_index) return not_found;
-	if (position_first == stop_index) return not_found;
-
-	// value at position must be surrounded by lower values
-	is_max = value > signal[position_first-1] &&
-		     value > signal[position_first+1];
-	if (!is_max) return not_found;
-
-	// find second peak in specified range
-	position_second = position_first + 1;
-	value = signal[position_second];
-	for (int i = position_second+1; i < stop_index; i++) {
-		if (value > signal[i]) break;
-		value = signal[i]; 
-		position_second = i;
-	}
-
-	// a peak can not be at a boundary
-	if (position_second == stop_index) return not_found;
-
-	// value at position must be surrounded by lower values
-	is_max = value > signal[position_second-1] &&
-		     value > signal[position_second+1];
-	if (!is_max) return not_found;
-
-	// return result
-	erase_peak(&peak);
-	peak.position = position_second;
-	peak.value = value;
-
-  	return peak;
+  	return peak2;
 }
 
 peak_t find_second_peak_precise(float* signal, int num_samples, int start_index, int stop_index)

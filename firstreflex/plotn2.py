@@ -35,7 +35,7 @@ axes[0].clear()
 # axes[0].set_xlabel("Time in 37 ms increment")
 # axes[0].set_ylabel("PSD in watt");
 axes[0].set_autoscale_on(False)
-axes[0].set_ylim(bottom=0, top=1)
+axes[0].set_ylim(bottom=0.5, top=0.7)
 axes[0].set_xlim(left=0, right=n1)
 
 axes[1].clear()
@@ -43,7 +43,7 @@ axes[1].clear()
 # axes[0].set_xlabel("Time in 37 ms increment")
 # axes[0].set_ylabel("PSD in watt");
 axes[1].set_autoscale_on(False)
-axes[1].set_ylim(bottom=0, top=1)
+axes[1].set_ylim(bottom=0, top=0.02)
 axes[1].set_xlim(left=0, right=n1)
 
 x = [a for a in range(n1)]

@@ -8,7 +8,7 @@ typedef struct {
   unsigned int last_index;
 } rms_t;
 
-void rms_init(rms_t* r);
+void rms_init(rms_t* r, float init_value);
 void rms_put(rms_t* r, float input);
 float rms_get(rms_t* r);
 

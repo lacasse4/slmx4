@@ -31,8 +31,8 @@ def read_data(filename):
 
 if len(sys.argv) < 2 or len(sys.argv) > 3:
     print("usage:")
-    print("       plotframes.py file")
-    print("       plotframes.py file start")
+    print("       plotframes_auto.py file")
+    print("       plotframes_auto.py file start")
     quit()
 
 start = 0
@@ -58,9 +58,6 @@ while start < 1024:
     figure.canvas.draw()
     figure.canvas.flush_events()
     start += 1
-    s = input()
-    if s == 'q':
-        break
 
 plt.close(figure)
 

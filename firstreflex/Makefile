@@ -9,7 +9,8 @@ all: 	bin/extract_breath \
 		bin/breath3 \
 		bin/fft1 \
 		bin/fft2 \
-		bin/breath4 
+		bin/breath4 \
+		bin/rms1
 
 bin/tinyosc.o: $(LSRC)/tinyosc.c $(LINC)/tinyosc.h
 	gcc -g -Werror -c -o bin/tinyosc.o -I $(LINC) $(LSRC)/tinyosc.c
@@ -52,6 +53,9 @@ bin/breath4: src/breath4.cpp bin/fftwrapper.o bin/tinyosc.o \
 		bin/fftwrapper.o bin/tinyosc.o \
 		$(LSRC)/slmx4_vcom.cpp $(LSRC)/serialib.cpp $(LSRC)/peak.c $(LSRC)/timer_us.c $(LSRC)/buffer.c \
 		-lm -lfftw3f
+
+bin/rms1: src/rms1.c $(LSRC)/rms.c $(LINC)/rms.h
+	gcc -g -Wall -o bin/rms1 -I $(LINC) src/rms1.c $(LSRC)/rms.c -lm
 
 clean:
 	rm -rf bin

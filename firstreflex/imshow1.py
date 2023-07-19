@@ -6,24 +6,24 @@ import sys
 def read_data(filename):
     fd = open(filename, "r") 
     z = []
+    n_frames = 0
 
-    while True:
-        try:
-            n = int(fd.readline())
-        except:
-            fd.close()
-            return z
-    
-        frame_start = float(fd.readline())
-        frame_end = float(fd.readline())
-        y = [];
+    while n_frames < 1024:
+        y = []
         count = 0
 
-        while count < n:
+        while count < 188:
+            value = float(fd.readline())
+            if count < 8:
+                value = 0.0
+            y.append(value)
             count += 1
-            y.append(float(fd.readline()))
             
         z.append(y)
+        n_frames += 1
+
+    fd.close()
+    return z
 
 if len(sys.argv) != 2:
     print("usage: imshow1.py file")

@@ -124,26 +124,26 @@ peak_t find_first_peak_with_unit(float* signal, int num_samples,
 
 peak_t find_second_peak(float* signal, int num_samples, int start_index, int stop_index)
 {  
-	peak_t peak1;
-	peak_t peak2;
+	peak_t first_peak;
+	peak_t second_peak;
 
-	// peak2 is reset. peak2.position == -1 means no peak was found.
-	erase_peak(&peak2);
+	// Reset second_peak.
+	erase_peak(&second_peak);
 
 	// find the first peak;
-	peak1 = find_first_peak(signal, num_samples, start_index, stop_index);
-	if (peak1.position == -1) return peak2;
+	first_peak = find_first_peak(signal, num_samples, start_index, stop_index);
+	if (first_peak.position == -1) return second_peak;
 
 	// search for the second peak in specified range
-	for (int i = peak1.position+1; i < stop_index; i++) {
+	for (int i = first_peak.position+1; i < stop_index; i++) {
 		if (signal[i-1] < signal[i] && signal[i+1] < signal[i]) {
-			peak2.position = i;
-			peak2.value = signal[i];
+			second_peak.position = i;
+			second_peak.value = signal[i];
 			break;
 		}
 	}
 
-  	return peak2;
+  	return second_peak;
 }
 
 peak_t find_second_peak_precise(float* signal, int num_samples, int start_index, int stop_index)

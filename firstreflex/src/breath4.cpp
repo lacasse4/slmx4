@@ -199,6 +199,7 @@ int main(int argc, char* argv[])
 
     int k = 0;
     while(k < 1024) {
+    // while(1) {
         start_time = timer_us_init();
 		sensor.get_frame_normalized(frame, POWER_IN_WATT);
 
@@ -211,7 +212,6 @@ int main(int argc, char* argv[])
             fft_spectrum(fft_wrapper[i], buffer_get_buffer(breath_signal[i]), spectrum[i]);
             spectrum[i][0] = 0.0; // remove DC component
             spectrum_peak[i] = find_peak_with_unit(spectrum[i], buffer_size[i]/2+1, START_SPECTRUM_PEAK, STOP_SPECTRUM_PEAK, samples_per_hertz[i]);
-
         }
         if (raising_edge == -1.0) {
             for(int i = 0; i < NUM_PROCESSORS; i++) {
@@ -234,15 +234,23 @@ int main(int argc, char* argv[])
 
 void print_debug(FILE* fd) 
 {
+    fprintf(fd, "%0.4f ", raising_edge);
+    float resp = spectrum_peak[0].scaled_position*60.0;
+    if (!buffer_is_valid(breath_signal[0])) resp = 0.0;
+    fprintf(fd, "%0.4f ", resp);
+    fprintf(fd, "\n");
+    // fprintf(fd, "\r");
+    // fflush(fd);
+
+
+
     // fprintf(fd, "%0.4f ", sampling_rate);
     // fprintf(fd, "%2d ",   frame_peak.position); 
     // fprintf(fd, "%0.4f ", frame_peak.precise_position);
-    fprintf(fd, "%0.4f ", raising_edge);
+    // fprintf(fd, "%0.2f ", raising_edge);
     // fprintf(fd, "%d ",    buffer_is_valid(breath_signal[0]));
     // fprintf(fd, "%3d ",   buffer_get_counter(breath_signal[0]));
-    if (buffer_is_valid(breath_signal[0])) {
-        fprintf(fd, "%0.4f ", spectrum_peak[0].scaled_position*60.0);
-    }
+    // fprintf(fd, "%0.4f ", spectrum_peak[0].scaled_position*60.0);
     // fprintf(fd, "%2d ",   spectrum_peak[0].position);
     // fprintf(fd, "%0.4f ", spectrum_peak[0].precise_position);
     // fprintf(fd, "%0.4f ", spectrum_peak[0].scaled_position*60.0);
@@ -257,7 +265,7 @@ void print_debug(FILE* fd)
         // printf("%2d ",   spectrum_peak[2].position);
         // printf("%7.4f ", spectrum_peak[2].precise_position*60.0);
         // printf("%7.4f",  spectrum_peak[2].precise_value);
-    fprintf(fd, "\n");
+    // fprintf(fd, "\n");
 
             // if (buffer_is_valid(breath_signal[0]) && spectrum_peak[0].position == -1) {
             //     buffer_dump(breath_signal[0], "SIGNAL");

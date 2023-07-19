@@ -61,7 +61,7 @@ int             buffer_size[NUM_PROCESSORS] = {600};
 float           frame[MAX_FRAME_SIZE*2] = {0};
 float           frame_mem[1024][MAX_FRAME_SIZE];
 float*          spectrum[NUM_PROCESSORS] = {0};
-peak_t          frame_peak;
+// peak_t          frame_peak;
 peak_t          spectrum_peak[NUM_PROCESSORS];
 fft_wrapper_t*  fft_wrapper[NUM_PROCESSORS] = {0};
 buffer_t*       breath_signal[NUM_PROCESSORS] = {0};
@@ -72,6 +72,7 @@ float samples_per_hertz[NUM_PROCESSORS];
 float previous_freq;
 unsigned long int elapsed_time_us;
 struct timeval start_time;
+float raising_edge;
 
 void  display_slmx4_status(FILE* f);
 char* display_signal(char out[MAX_FRAME_SIZE], float in[MAX_FRAME_SIZE]);
@@ -204,15 +205,15 @@ int main(int argc, char* argv[])
         memcpy(frame_mem[k], frame, sizeof(float)*MAX_FRAME_SIZE);
         k++;
 
-        frame_peak  = find_peak_with_unit (frame, sensor.get_num_samples(), START_FRAME_PEAK, STOP_FRAME_PEAK, samples_per_meter);    
+        raising_edge = find_peak_raising_edge_with_unit (frame, sensor.get_num_samples(), START_FRAME_PEAK, STOP_FRAME_PEAK, samples_per_meter);    
         for (int i = 0; i < NUM_PROCESSORS; i++) {
-            buffer_put_sample(breath_signal[i], frame_peak.scaled_position);
+            buffer_put_sample(breath_signal[i], raising_edge);
             fft_spectrum(fft_wrapper[i], buffer_get_buffer(breath_signal[i]), spectrum[i]);
             spectrum[i][0] = 0.0; // remove DC component
             spectrum_peak[i] = find_peak_with_unit(spectrum[i], buffer_size[i]/2+1, START_SPECTRUM_PEAK, STOP_SPECTRUM_PEAK, samples_per_hertz[i]);
 
         }
-        if (frame_peak.position == -1) {
+        if (raising_edge == -1.0) {
             for(int i = 0; i < NUM_PROCESSORS; i++) {
                 buffer_reset(breath_signal[i]);
             }
@@ -236,7 +237,7 @@ void print_debug(FILE* fd)
     // fprintf(fd, "%0.4f ", sampling_rate);
     // fprintf(fd, "%2d ",   frame_peak.position); 
     // fprintf(fd, "%0.4f ", frame_peak.precise_position);
-    fprintf(fd, "%0.4f ", frame_peak.scaled_position);
+    fprintf(fd, "%0.4f ", raising_edge);
     // fprintf(fd, "%d ",    buffer_is_valid(breath_signal[0]));
     // fprintf(fd, "%3d ",   buffer_get_counter(breath_signal[0]));
     if (buffer_is_valid(breath_signal[0])) {

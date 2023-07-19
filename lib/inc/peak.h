@@ -20,4 +20,6 @@ peak_t find_second_peak(float* signal, int num_samples, int start_index, int sto
 peak_t find_second_peak_precise(float* signal, int num_samples, int start_index, int stop_index);
 peak_t find_second_peak_with_unit(float* signal, int num_samples, float from, float to, float samples_per_unit);
 
+float  find_peak_raising_edge(float* signal, int num_sample, int start_index, int stop_index);
+float  find_peak_raising_edge_with_unit(float* signal, int num_samples, float from, float to, float samples_per_unit);
 #endif

@@ -1,4 +1,5 @@
 #include <math.h>
+#include <float.h>
 #include "peak.h"
 
 static peak_t get_accurate_peak(peak_t peak, float* signal)
@@ -164,5 +165,53 @@ peak_t find_second_peak_with_unit(float* signal, int num_samples,
 	peak_t peak = find_second_peak_precise(signal, num_samples, start_index, stop_index);
 	peak.scaled_position = peak.precise_position / samples_per_unit;
 	return peak;
- 
+}
+
+
+float  find_peak_raising_edge(float* signal, int num_sample, int start_index, int stop_index)
+{
+	int    i;
+	int    found = 0;
+	float  edge = -1.0f;
+	float  edge_level;
+	peak_t peak;
+
+	peak = find_peak(signal, num_sample, start_index, stop_index);
+	if (peak.position == -1) {
+		return edge;
+	}
+
+	edge_level = peak.value * 0.5;
+
+	// looking backward from peak position, search signal value under edge_level
+	for (i = peak.position; i >= start_index && !found; i--) {
+		if (signal[i] < edge_level) {
+			found = 1;
+			break;
+		}
+	}
+
+	// use linear interpolation to get a precise edge position at edge_level. 
+	if (found) {
+		float m = signal[i+1] - signal[i];
+		if (fabsf(m) >= FLT_EPSILON) {
+			float b = signal[i] - m * i;
+			edge = (edge_level - b) / m;
+		}
+	}
+	return edge;
+}
+
+float  find_peak_raising_edge_with_unit(float* signal, int num_samples, float from, float to, float samples_per_unit)
+{
+	float edge;
+
+	int start_index = roundf(from * samples_per_unit);
+	int stop_index  = roundf(to   * samples_per_unit);
+	edge = find_peak_raising_edge(signal, num_samples, start_index, stop_index);
+	if (edge != -1.0f) {
+		edge = edge / samples_per_unit;
+	}
+
+	return edge;
 }

@@ -37,8 +37,8 @@ figure.show()
         
 axes.clear()
 axes.set(title="Respiration profile", xlabel="n=%s" % n)
-axes.set_xlabel("Time in 37 ms increment")
-axes.set_ylabel("PSD in watt");
+axes.set_xlabel("Time in 20 ms increment")
+axes.set_ylabel("Distance in meter");
 axes.set_autoscale_on(False)
 axes.set_ylim(bottom=minimum, top=maximum)
 axes.set_xlim(left=0, right=n)

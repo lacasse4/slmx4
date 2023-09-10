@@ -15,8 +15,9 @@ from slmx4_health_wrapper import slmx4_health
 from slmx4_health_debug import *
 
 # Create a instance of the slmx4 health wrapper
-slmx4 = slmx4_health('/dev/ttyACM0') # Linux
+# slmx4 = slmx4_health('/dev/ttyACM0') # Linux
 # slmx4 = slmx4_health('COM3') # Windows
+slmx4 = slmx4_health('/dev/tty.usbmodem141101') # macOS
 
 # Open the USB VCOM connection
 slmx4.open()
@@ -38,19 +39,19 @@ slmx4.start()
 
 # Run loop until the user presses CTRL-C
 try:
-	while True:
-		# When data streaming, the SLM-X4 will send two messages back-to-back:
-		# the health message, followed by the respiration waveform
-		health = slmx4.read_msg()
-		resp_wave = slmx4.read_msg()
+    while True:
+        # When data streaming, the SLM-X4 will send two messages back-to-back:
+        # the health message, followed by the respiration waveform
+        health = slmx4.read_msg()
+        resp_wave = slmx4.read_msg()
 
-		if os.name == 'nt':
-			os.system('cls')
-		else:
-			os.system('clear')
+        if os.name == 'nt':
+            os.system('cls')
+        else:
+            os.system('clear')
 
-		debug_health(health)
-		# debug_resp_wave(resp_wave)
+        debug_health(health)
+        # debug_resp_wave(resp_wave)
 
 except KeyboardInterrupt:
     pass

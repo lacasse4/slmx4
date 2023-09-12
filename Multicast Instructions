@@ -1,0 +1,14 @@
+2023-09-12
+
+Use multicast to transmit host ip address under linux.
+
+Listeners
+  $ nc -lu -W 1 7401
+
+Multicast sender
+  $ echo $(hostname -I) | nc -u -q 1 224.0.0.1 7401
+
+Notes:
+  "-W 1" on the listener makes nc exit after receiving 1 packet
+  "-q 1" on the sender makes nc exit 1 sec. after its transmission
+  "224.0.0.1" is the general multicast IPv4 address
